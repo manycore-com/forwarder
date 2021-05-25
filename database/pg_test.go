@@ -40,3 +40,11 @@ func TestUpdateErrorMessage(t *testing.T) {
 	}
 
 }
+
+func TestGetUserData(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	ci, err := GetUserData(1)
+	assert.NoError(t, err, "Failed to get user data")
+	fmt.Printf("User data: %#v\n", *ci)
+}

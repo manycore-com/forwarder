@@ -84,7 +84,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 		var secret string
 		q := `
         select 
-            (
+            coalesce((
                 select array_to_json(array_agg(row_to_json(t)))
                 from (
                     select 
@@ -95,7 +95,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                         ipe.company_id = ipc.company_id AND
                         ipe.is_active = true
                 ) t
-            ) as json,
+            ),'[]') as json,
             secret
         from 
             inboxbooster_poll_cfg ipc
@@ -118,7 +118,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 		theElem = &ci
 
 		var jsonRows []OneJsonRow
-		if "" != jsonStr {
+		if "" != jsonStr && "[]" != jsonStr {
 			err = json.Unmarshal([]byte(jsonStr), &jsonRows)
 			if err != nil {
 				companyInfoMap[companyId] = nil
