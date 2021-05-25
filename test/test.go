@@ -1,0 +1,25 @@
+package test
+
+import "os"
+
+func SetEnvVars() {
+	os.Setenv("PROJECT_ID", os.Getenv("FORWARDER_TEST_PROJECT_ID"))
+
+	// You likely want to override these on test basis
+	os.Setenv("IN_SUBSCRIPTION_ID", os.Getenv("FORWARDER_TEST_RESPONDER_SUBS"))
+	os.Setenv("OUT_QUEUE_TOPIC_ID", os.Getenv("FORWARDER_TEST_QUEUE_1"))
+	//os.Setenv("OUT_TRIGGER_TOPIC_ID", os.Getenv("FORWARDER_TEST_TRIGGER_1"))
+
+	os.Setenv("SIMPLE_HASH_PASSWORD", os.Getenv("FORWARDER_TEST_SIMPLE_HASH_PASSWORD"))
+	os.Setenv("DEV_OR_PROD", os.Getenv("FORWARDER_TEST_DEV_OR_PROD"))
+	os.Setenv("NBR_ACK_WORKER", os.Getenv("FORWARDER_TEST_NBR_ACK_WORKER"))
+	os.Setenv("NBR_PUBLISH_WORKER", os.Getenv("FORWARDER_TEST_NBR_PUBLISH_WORKER"))
+	os.Setenv("MAX_NBR_MESSAGES_POLLED", os.Getenv("FORWARDER_TEST_MAX_NBR_MESSAGES_POLLED"))
+
+	os.Setenv("DB_USER", os.Getenv("FORWARDER_TEST_DB_USER"))
+	os.Setenv("DB_PASS", os.Getenv("FORWARDER_TEST_DB_PASS"))
+	os.Setenv("INSTANCE_CONNECTION_NAME", os.Getenv("FORWARDER_TEST_INSTANCE_CONNECTION_NAME"))
+	os.Setenv("DB_NAME", os.Getenv("FORWARDER_TEST_DB_NAME"))
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GOOGLE_APPLICATION_CREDENTIALS"))
+}
