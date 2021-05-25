@@ -1,17 +1,25 @@
 # Webhook Forwarder
 
-## Background
+## Introduction
 
-The purpose of this code is to forward ESP (Email Service Provider) webhooks.
-ESPs usually only allows one forward.
+The project goal is to forward webhooks from one endpoint to n others. We use it for our Inboxbooster project which is 
+based on processing of ESP (Email Service Provider) webhooks.
 
-To add support for a new ESP, please look at the esp package.
+Famously Sendgrid allows only one forward so it is our way to fix it.
 
-It's built for the GCP ecosystem.
+
+It's built for the GCP ecosystem using cloud functions.
+
 
 It's licensed under the MIT license. tl;dr: You can use it in your closed source
-project if you want. You don't have to publish any modifications, but we appreciate
-bug reports.
+project if you want. We appreciate
+bug reports and contributions.
+
+
+## How to?
+
+- To add support for a new webhook receiver, please look at the esp package and add it there.
+
 
 #### Please note
 * Environment variables are specified per cloud function. Some environment variables
