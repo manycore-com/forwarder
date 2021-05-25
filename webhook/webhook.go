@@ -184,14 +184,14 @@ func F(w http.ResponseWriter, r *http.Request) {
 
 	_, companyId, esp, safeHash, pathErr := ValidateUrlPath(r.URL.Path)  // TODO safeHash
 	if nil != pathErr {
-		fmt.Printf("Error: Url is invalid: %v\n", err)
+		fmt.Printf("Error: Url is invalid: %v\n", pathErr)
 		http.Error(w, pathErr.Error(), http.StatusUnauthorized)
 		return
 	}
 
 	b, bodyErr := ValidateBody(r)
 	if nil != bodyErr {
-		fmt.Printf("Error: Body is invalid: %v\n", err)
+		fmt.Printf("Error: Body is invalid: %v\n", bodyErr)
 		http.Error(w, bodyErr.Error(), http.StatusBadRequest)
 		return
 	}

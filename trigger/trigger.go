@@ -148,7 +148,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwareder.trigger.Trigger(%s) done!\ns", devprod)
+	fmt.Printf("forwareder.trigger.Trigger(%s) done!\n", devprod)
 
 	return nil
 }
