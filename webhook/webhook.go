@@ -1,7 +1,7 @@
 package webhook
 
 import (
-	"cloud.google.com/go/pubsub"
+	pubsub "cloud.google.com/go/pubsub"
 	"context"
 	"crypto/sha256"
 	"encoding/json"

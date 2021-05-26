@@ -1,4 +1,4 @@
-package pubsub
+package forwarderpubsub
 
 import (
 	monitoring "cloud.google.com/go/monitoring/apiv3"

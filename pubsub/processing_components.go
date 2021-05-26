@@ -1,4 +1,4 @@
-package pubsub
+package forwarderpubsub
 
 import (
 	"cloud.google.com/go/pubsub"
