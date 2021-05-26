@@ -90,7 +90,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                     select 
                         forward_endpoint as dest
                     from
-                        inboxbooster_poll_endpoint ipe
+                        webhook_forwarder_poll_endpoint ipe
                     where
                         ipe.company_id = ipc.company_id AND
                         ipe.is_active = true
@@ -98,7 +98,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
             ),'[]') as json,
             secret
         from 
-            inboxbooster_poll_cfg ipc
+            webhook_forwarder_poll_cfg ipc
         where company_id = $1
         `
 
@@ -170,7 +170,7 @@ func UpdateUsage(companyId int, incQueue1 int, incQueue2 int, incQueue3 int, los
 	// q3 = second forward attempt failed, and msg is put on q3 without errors
 	// l = lost: too many retries / unrecoverable error
 	q := `
-INSERT INTO inboxbooster_daily_forward_stats as o (
+INSERT INTO webhook_forwarder_daily_forward_stats as o (
     company_id,
     created_at, 
     q1_h00, q1_h01, q1_h02, q1_h03, q1_h04, q1_h05, q1_h06, q1_h07, q1_h08, q1_h09, q1_h10, q1_h11,
@@ -275,7 +275,7 @@ returning last_errors, last_hour_with_examples, id
 		counter := 1
 		args := []interface{}{}
 
-		q = "update inboxbooster_daily_forward_stats set last_errors = Array["
+		q = "update webhook_forwarder_daily_forward_stats set last_errors = Array["
 		for _, errm := range lastErrors {
 			if 1 < counter {
 				q += ","
@@ -324,7 +324,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
 	}
 
 	var q = `
-    update inboxbooster_daily_forward_stats
+    update webhook_forwarder_daily_forward_stats
     set
         last_hour_with_examples = $1
     where
@@ -336,7 +336,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
 	}
 
 	q = `
-    INSERT INTO inboxbooster_latest_forward_examples as o
+    INSERT INTO webhook_forwarder_latest_forward_examples as o
     (
         company_id,
         created_at,
@@ -360,7 +360,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
 	exDest := 1 + circularPointer0to3
 	circularPointer0to3 = (circularPointer0to3 + 1) & 3
 	q = `
-    UPDATE inboxbooster_latest_forward_examples
+    UPDATE webhook_forwarder_latest_forward_examples
     SET
         circular_pointer_0to3 = $1,
         ex` + strconv.Itoa(exDest) + ` = $2
