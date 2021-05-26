@@ -149,7 +149,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwareder.trigger.Trigger(%s) done! Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwareder.trigger.Trigger(%s) done! already:%v, new triggers:%v, Memstats: %s\n", devprod, alreadyOnTriggerQueue, iterations, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
