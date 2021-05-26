@@ -216,7 +216,14 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
+	var nbrPolled = 0
+	var nbrForwardOk = 0
+	var nbrForwardDrop = 0
 	for companyId, s := range forwarderStats.StatsMap {
+		nbrPolled += s.PollOk
+		nbrForwardOk += s.ForwardOk
+		nbrForwardDrop += s.ForwardDrop
+
 		var id int
 		var prevHour int
 		var hourNow int
@@ -234,6 +241,8 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 			}
 		}
 	}
+
+	fmt.Printf("forwarder.fanout.Fanout(): done. # poll: %d, # forward: %d, # drop: %d,  Memstats: %s\n", nbrPolled, nbrForwardOk, nbrForwardDrop, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

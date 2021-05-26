@@ -1,6 +1,10 @@
 package stats
 
-import "sync"
+import (
+	"fmt"
+	"runtime"
+	"sync"
+)
 
 type Stats struct {
 	PollOk       int
@@ -87,3 +91,14 @@ func AddInMessage(companyId int, inMessage string) {
 	theElem.InMessage = inMessage
 }
 
+func GetMemUsageMb() (uint64, uint64, uint64, uint32) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	return m.Alloc / 1024 / 1024, m.TotalAlloc / 1024 / 1024, m.Sys / 1024 / 1024, m.NumGC
+}
+
+func GetMemUsageStr() string {
+	alloc, totalAlloc, sys, numgc := GetMemUsageMb()
+	return fmt.Sprintf("Alloc: %vMB, total alloc: %vMB, sys: %v, # gc: %v", alloc, totalAlloc, sys, numgc)
+}

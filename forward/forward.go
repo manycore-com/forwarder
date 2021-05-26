@@ -246,7 +246,14 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
+	var nbrForwardOk = 0
+	var nbrForwardError = 0
+	var nbrForwardDrop = 0
 	for companyId, s := range forwarderStats.StatsMap {
+		nbrForwardOk += s.ForwardOk
+		nbrForwardError += s.ForwardError
+		nbrForwardDrop += s.ForwardDrop
+
 		var err error
 		if 1 == atQueue {
 			_, _, _, err = forwarderDb.UpdateUsage(companyId, s.ForwardError, 0, 0, s.ForwardDrop, s.ForwardOk, s.ErrorMessage, 0)
@@ -260,6 +267,8 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 			fmt.Printf("forwarder.fanout.Fanout(%s): Failed to update stats for company=%d. Error: %v\n", devprod, companyId, err)
 		}
 	}
+
+	fmt.Printf("forwarder.fanout.Fanout(): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

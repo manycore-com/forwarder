@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -227,5 +228,5 @@ func F(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "ok")
+	fmt.Fprintf(w, "ok (%s)", forwarderStats.GetMemUsageStr())
 }

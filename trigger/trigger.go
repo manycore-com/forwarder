@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"math"
 	"os"
 	"strconv"
@@ -148,7 +149,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwareder.trigger.Trigger(%s) done!\n", devprod)
+	fmt.Printf("forwareder.trigger.Trigger(%s) done! Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
