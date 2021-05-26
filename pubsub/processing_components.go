@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"sync"
 	"time"
 )
@@ -80,7 +79,6 @@ func receiveEventsFromPubsubPoller(
 				fmt.Printf("Message: %#v age:%v\n", elem, AgeInSecMessage(msg))
 				*ackQueue <- msg
 				*pubsubForwardChan <- &elem
-				forwarderStats.AddPollOk(elem.CompanyID, 1)
 			}
 		} else {
 			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)

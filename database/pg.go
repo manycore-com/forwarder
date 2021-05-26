@@ -298,8 +298,6 @@ returning last_errors, last_hour_with_examples, id
 		}
 	}
 
-	fmt.Printf("l: %#v\n", lastErrors)
-
 	return id, lastHourWithExamples, hourNow, err
 }
 
