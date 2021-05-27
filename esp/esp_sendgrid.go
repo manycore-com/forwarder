@@ -2,7 +2,6 @@ package esp
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
@@ -20,15 +19,8 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 		return fmt.Errorf("forwarder.forward.forwardMg(%s): Missing Dest url", devprod), false
 	}
 
-	payload, err := json.Marshal(elem)
-	if nil != err {
-		// This should never never happen either
-		forwarderStats.AddErrorMessage(elem.CompanyID, "Failed to marshal message to json.")
-		return fmt.Errorf("forwarder.forward.forwardMg(%s): Failed to Marshal: %v", devprod, err), false
-	}
-
 	// ok, time to forward
-	request, err := http.NewRequest("POST", elem.Dest, bytes.NewReader(payload))
+	request, err := http.NewRequest("POST", elem.Dest, bytes.NewReader([]byte(elem.ESPJsonString)))
 	if err != nil {
 		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
 		return err, true
@@ -48,7 +40,11 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 	resp, err := client.Do(request)
 	if err != nil {
 		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
-		return err, resp.StatusCode >= 500
+		if resp == nil {
+			return err, false
+		} else {
+			return err, resp.StatusCode >= 500
+		}
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()

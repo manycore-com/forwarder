@@ -43,3 +43,5 @@ func TestAsyncSendTriggerPackages(t *testing.T) {
 
 	waitGroup.Wait()
 }
+
+
