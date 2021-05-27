@@ -49,6 +49,7 @@ func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) 
 
 	it := client.ListTimeSeries(ctx, req)
 
+	var resultingNumber int64 = -1
 	for {
 		resp, err := it.Next()
 		if err == iterator.Done {
@@ -59,7 +60,13 @@ func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) 
 			return 0, fmt.Errorf("could not read time series value: %v", err)
 		}
 
-		return resp.GetPoints()[len (resp.GetPoints()) - 1].Value.GetInt64Value(), nil
+		resultingNumber = resp.GetPoints()[len (resp.GetPoints()) - 1].Value.GetInt64Value()
+
+		break
+	}
+
+	if resultingNumber >= 0 {
+		return resultingNumber, nil
 	}
 
 	return 0,fmt.Errorf("Failed to find time series data for %s", subscriptionId)

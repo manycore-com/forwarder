@@ -6,10 +6,9 @@ import (
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io"
+	"io/ioutil"
 	"net/http"
 )
-
-
 
 func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool) {  // bool: any point to retry
 
@@ -25,7 +24,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
 		return err, true
 	}
-
+	request.Close = true
 	request.Header.Set("Content-Type", "application/json")
 
 	// FIXME Decide if we make the verification or if we just defer it like this
@@ -36,8 +35,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 		request.Header.Set(header, elem.Sign)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(request)
+	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
 		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
 		if resp == nil {
@@ -55,6 +53,8 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 	} (resp.Body)
 
 	fmt.Printf("forwarder.forward.forwardMg(%s): ok. Status:%v\n", devprod, resp.Status)
+
+	_, err = ioutil.ReadAll(resp.Body)
 
 	// TODO check that status code is in 2xx range?
 	if resp.StatusCode >= 300 || resp.StatusCode < 200 {

@@ -1,6 +1,8 @@
 package trigger
 
 import (
+	"fmt"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"sync"
@@ -42,6 +44,33 @@ func TestAsyncSendTriggerPackages(t *testing.T) {
 	}
 
 	waitGroup.Wait()
+}
+
+func apa(nbrPublishWorkers int, triggerTopicId string) {
+	messageQueue := make(chan int64, nbrPublishWorkers)
+	defer close(messageQueue)
+	var waitGroup sync.WaitGroup
+
+	asyncSendTriggerPackages(&messageQueue, &waitGroup, triggerTopicId, nbrPublishWorkers)
+
+
+	// 3. Stop the async senders
+	for j:=0; j<nbrPublishWorkers; j++ {
+		messageQueue <- int64(-1)
+	}
+
+	waitGroup.Wait()
+}
+
+func TestXX(t *testing.T) {
+
+	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
+
+	for i:=0; i<30; i++ {
+		apa(32, os.Getenv("FORWARDER_TEST_RESPONDER_TRG"))
+		fmt.Printf("mem after: %s\n", forwarderStats.GetMemUsageStr())
+	}
+
 }
 
 

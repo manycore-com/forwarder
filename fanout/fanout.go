@@ -102,7 +102,11 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 		go func(idx int, forwardWaitGroup *sync.WaitGroup) {
 			defer forwardWaitGroup.Done()
 
-			ctx, _, outQueueTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, outQueueTopicId)
+			ctx, client, outQueueTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, outQueueTopicId)
+			if nil != client {
+				defer client.Close()
+			}
+
 			if err != nil {
 				fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Critical Error: Failed to instantiate Topic Client: %v\n", devprod, idx, err)
 				return

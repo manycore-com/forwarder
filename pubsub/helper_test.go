@@ -56,7 +56,7 @@ func TestXX(t *testing.T) {
 	fmt.Printf("mem after: %s\n", forwarderStats.GetMemUsageStr())  // 4/27
 }
 
-// Nop:      Alloc: 1MB, total alloc: 1MB, sys: 66, # gc: 0
+// Nop:      Alloc: 1MB, total alloc: 1MB, sys: 66, # gc: 0      proj: TESTING
 // Empty Q:  Alloc: 3MB, total alloc: 10MB, sys: 68, # gc: 4
 // 1000 el:  Alloc: 2MB, total alloc: 10MB, sys: 68, # gc: 5
 // 2000 el:  Alloc: 2MB, total alloc: 10MB, sys: 69, # gc: 5
@@ -65,12 +65,16 @@ func TestXX(t *testing.T) {
 func TestCheckNbrItemsPubsub(t *testing.T) {
 	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
 
-	itemsPubsub, err := CheckNbrItemsPubsub(os.Getenv("FORWARDER_TEST_PROJECT_ID"), "TESTING")
-	if err != nil {
-		fmt.Printf("Error: %v\n",err)
-		return
-	}
-	fmt.Printf("Items on q: %v\n", itemsPubsub)
+	for i:=0; i<30; i++ {
+		itemsPubsub, err := CheckNbrItemsPubsub(os.Getenv("FORWARDER_TEST_PROJECT_ID"), "INBOXBOOSTER_DEVPROD_QUEUE1")
+		if err != nil {
+			fmt.Printf("Error: %v\n",err)
+			return
+		}
+		fmt.Printf("Items on q: %v\n", itemsPubsub)
 
-	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
+		fmt.Printf("mem after: %s\n", forwarderStats.GetMemUsageStr())
+	}
+
+	fmt.Printf("Done\n")
 }

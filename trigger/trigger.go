@@ -81,12 +81,15 @@ func asyncSendTriggerPackages(channel *chan int64, waitGroup *sync.WaitGroup, tr
 		go func(idx int, waitGroup *sync.WaitGroup) {
 			defer waitGroup.Done()
 
-			ctx, _, triggerTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, triggerTopicId)
+			ctx, client, triggerTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, triggerTopicId)
+			if nil != client {
+				defer client.Close()
+			}
+
 			if err != nil {
 				fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Critical Error: Failed to instantiate Topic Client: %v\n", devprod, idx, err)
 				return
 			}
-
 
 			for {
 				var val int64 = <-*channel

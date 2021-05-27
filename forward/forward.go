@@ -111,7 +111,11 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 
 			defer failureWaitGroup.Done()
 
-			ctx1, _, nextForwardTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, nextTopicId)
+			ctx1, client, nextForwardTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, nextTopicId)
+			if nil != client {
+				defer client.Close()
+			}
+
 			if err != nil {
 				fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client: %v\n", devprod, idx, err)
 				return
