@@ -64,6 +64,7 @@ func CalculateUnsafeHash(secret string) string {
 	return hashHead
 }
 
+// ValidateUrlPath is tested for memory leaks
 // There are two hashes. This is just a quick check to filter out bots and what not.
 // ValidateUrlPath we expect /v1/sg/1/08491a2c7c145127f83ac9654264cbe7/x/
 // -> version int, companyId int, simpleHash string, safeHash string, error error
@@ -126,7 +127,6 @@ func ValidateBody(r *http.Request) ([]byte, error) {
 
 	// Read body
 	b, err = ioutil.ReadAll(r.Body)
-	defer r.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +154,7 @@ func ExtractSign(r *http.Request, esp string) (string, error) {
 	}
 }
 
+// Send is tested for memory leaks
 func Send(payload []byte) error {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, projectId)  // client
@@ -186,7 +187,7 @@ func F(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, companyId, esp, safeHash, pathErr := ValidateUrlPath(r.URL.Path)  // TODO safeHash
+	_, companyId, esp, safeHash, pathErr := ValidateUrlPath(r.URL.Path)
 	if nil != pathErr {
 		fmt.Printf("Error: Url is invalid: %v\n", pathErr)
 		http.Error(w, pathErr.Error(), http.StatusUnauthorized)

@@ -1,6 +1,10 @@
 package webhook
 
 import (
+	"cloud.google.com/go/pubsub"
+	"context"
+	"fmt"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -170,4 +174,64 @@ func TestFDev(t *testing.T) {
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
+}
+
+func testMemLeakInner() error {
+	ctx := context.Background()
+	client, err := pubsub.NewClient(ctx, os.Getenv("FORWARDER_TEST_PROJECT_ID"))  // client
+	if err != nil {
+		return fmt.Errorf("error: Failed to instantiate Client: %v\n", err)
+	}
+	if nil != client {
+		defer client.Close()
+	}
+
+	const okPayload = `[
+    {
+      "email":"apa4@banan.com",
+      "timestamp":1576683110,
+      "smtp-id":"<14c5d75ce93.dfd.64b469@ismtpd-555>",
+      "event":"delivered",
+      "category":"cat facts",
+      "marketing_campaign_id":"supercampaign",
+      "sg_event_id":"sg_event_id",
+      "sg_message_id":"sg_message_id"
+    }
+]`
+
+
+	outQueueTopic := client.Topic("TESTING")
+	outQueueResult := outQueueTopic.Publish(ctx, &pubsub.Message{
+		Data: []byte(okPayload),
+	})
+
+	// First, wait for the outQueue since we sent to that first
+	_, waitErr := outQueueResult.Get(ctx)
+	if waitErr != nil {
+		return fmt.Errorf("error: Failed to send to %s pubsub: %v\n", outQueueTopicId, waitErr)
+	}
+
+	return nil
+}
+
+
+func TestMemLeak(t *testing.T) {
+
+	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
+
+	for i:=0; i<100; i++ {
+
+		req := httptest.NewRequest("POST", "/", strings.NewReader(okPayload))
+
+		_, err := ValidateBody(req)
+		if nil != err {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+
+		fmt.Printf("mem after: %s\n", forwarderStats.GetMemUsageStr())
+
+	}
+
+
 }
