@@ -108,6 +108,9 @@ func ReceiveEventsFromPubsub(
 	if clientErr != nil {
 		return 0, clientErr
 	}
+	if nil != client {
+		defer client.Close()
+	}
 
 	subscription := client.Subscription(subscriptionId)
 	subscription.ReceiveSettings.Synchronous = true

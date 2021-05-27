@@ -160,6 +160,9 @@ func Send(payload []byte) error {
 	if err != nil {
 		return fmt.Errorf("error: Failed to instantiate Client: %v\n", err)
 	}
+	if nil != client {
+		defer client.Close()
+	}
 
 	outQueueTopic := client.Topic(outQueueTopicId)
 	outQueueResult := outQueueTopic.Publish(ctx, &pubsub.Message{
