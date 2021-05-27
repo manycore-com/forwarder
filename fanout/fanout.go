@@ -242,7 +242,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 		}
 	}
 
-	fmt.Printf("forwarder.fanout.Fanout(): done. # poll: %d, # forward: %d, # drop: %d,  Memstats: %s\n", nbrPolled, nbrForwardOk, nbrForwardDrop, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(): done. # poll: %d, # enqueued: %d, # drop: %d,  Memstats: %s\n", nbrPolled, nbrForwardOk, nbrForwardDrop, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
