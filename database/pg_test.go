@@ -7,7 +7,14 @@ import (
 	"testing"
 )
 
-func TestValidateUrlPath(t *testing.T) {
+func TestUpdateUsage(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	_, _, _, err := UpdateUsage(1,  1, 2, 3, 4, 5, "Err msg", 6)
+	assert.NoError(t, err, "Failed to update usage")
+}
+
+func TestGetUserData2(t *testing.T) {
 
 	forwarderTest.SetEnvVars()
 

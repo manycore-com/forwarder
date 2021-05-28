@@ -164,12 +164,76 @@ func UpdateUsage(companyId int, incQueue1 int, incQueue2 int, incQueue3 int, los
 	l[hour] = lost
 	s[hour] = forwarded
 
-	// s = successfully received into Fanout
-	// q1 = successful fanout writes
-	// q2 = first forward attempt failed, and msg is put on q2 without errors
-	// q3 = second forward attempt failed, and msg is put on q3 without errors
-	// l = lost: too many retries / unrecoverable error
+	var lastErrors []string
+	var lastHourWithExamples int
+	var id int
+
+	// First we try a normal update, and if that fails we do an upsert.
 	q := `
+UPDATE webhook_forwarder_daily_forward_stats as o
+SET 
+    q1_h00 = o.q1_h00 + $1, q1_h01 = o.q1_h01 + $2, q1_h02 = o.q1_h02 + $3, q1_h03 = o.q1_h03 + $4,
+    q1_h04 = o.q1_h04 + $5, q1_h05 = o.q1_h05 + $6, q1_h06 = o.q1_h06 + $7, q1_h07 = o.q1_h07 + $8,
+    q1_h08 = o.q1_h08 + $9, q1_h09 = o.q1_h09 + $10, q1_h10 = o.q1_h10 + $11, q1_h11 = o.q1_h11 + $12,
+    q1_h12 = o.q1_h12 + $13, q1_h13 = o.q1_h13 + $14, q1_h14 = o.q1_h14 + $15, q1_h15 = o.q1_h15 + $16,
+    q1_h16 = o.q1_h16 + $17, q1_h17 = o.q1_h17 + $18, q1_h18 = o.q1_h18 + $19, q1_h19 = o.q1_h19 + $20,
+    q1_h20 = o.q1_h20 + $21, q1_h21 = o.q1_h21 + $22, q1_h22 = o.q1_h22 + $23, q1_h23 = o.q1_h23 + $24, 
+
+    q2_h00 = o.q2_h00 + $25, q2_h01 = o.q2_h01 + $26, q2_h02 = o.q2_h02 + $27, q2_h03 = o.q2_h03 + $28,
+    q2_h04 = o.q2_h04 + $29, q2_h05 = o.q2_h05 + $30, q2_h06 = o.q2_h06 + $31, q2_h07 = o.q2_h07 + $32,
+    q2_h08 = o.q2_h08 + $33, q2_h09 = o.q2_h09 + $34, q2_h10 = o.q2_h10 + $35, q2_h11 = o.q2_h11 + $36,
+    q2_h12 = o.q2_h12 + $37, q2_h13 = o.q2_h13 + $38, q2_h14 = o.q2_h14 + $39, q2_h15 = o.q2_h15 + $40,
+    q2_h16 = o.q2_h16 + $41, q2_h17 = o.q2_h17 + $42, q2_h18 = o.q2_h18 + $43, q2_h19 = o.q2_h19 + $44,
+    q2_h20 = o.q2_h20 + $45, q2_h21 = o.q2_h21 + $46, q2_h22 = o.q2_h22 + $47, q2_h23 = o.q2_h23 + $48, 
+
+    q3_h00 = o.q3_h00 + $49, q3_h01 = o.q3_h01 + $50, q3_h02 = o.q3_h02 + $51, q3_h03 = o.q3_h03 + $52,
+    q3_h04 = o.q3_h04 + $53, q3_h05 = o.q3_h05 + $54, q3_h06 = o.q3_h06 + $55, q3_h07 = o.q3_h07 + $56,
+    q3_h08 = o.q3_h08 + $57, q3_h09 = o.q3_h09 + $58, q3_h10 = o.q3_h10 + $59, q3_h11 = o.q3_h11 + $60,
+    q3_h12 = o.q3_h12 + $61, q3_h13 = o.q3_h13 + $62, q3_h14 = o.q3_h14 + $63, q3_h15 = o.q3_h15 + $64,
+    q3_h16 = o.q3_h16 + $65, q3_h17 = o.q3_h17 + $66, q3_h18 = o.q3_h18 + $67, q3_h19 = o.q3_h19 + $68,
+    q3_h20 = o.q3_h20 + $69, q3_h21 = o.q3_h21 + $70, q3_h22 = o.q3_h22 + $71, q3_h23 = o.q3_h23 + $72, 
+
+    l_h00 = o.l_h00 + $73, l_h01 = o.l_h01 + $74, l_h02 = o.l_h02 + $75, l_h03 = o.l_h03 + $76,
+    l_h04 = o.l_h04 + $77, l_h05 = o.l_h05 + $78, l_h06 = o.l_h06 + $79, l_h07 = o.l_h07 + $80,
+    l_h08 = o.l_h08 + $81, l_h09 = o.l_h09 + $82, l_h10 = o.l_h10 + $83, l_h11 = o.l_h11 + $84,
+    l_h12 = o.l_h12 + $85, l_h13 = o.l_h13 + $86, l_h14 = o.l_h14 + $87, l_h15 = o.l_h15 + $88,
+    l_h16 = o.l_h16 + $89, l_h17 = o.l_h17 + $90, l_h18 = o.l_h18 + $91, l_h19 = o.l_h19 + $92,
+    l_h20 = o.l_h20 + $93, l_h21 = o.l_h21 + $94, l_h22 = o.l_h22 + $95, l_h23 = o.l_h23 + $96, 
+
+    s_h00 = o.s_h00 + $97, s_h01 = o.s_h01 + $98, s_h02 = o.s_h02 + $99, s_h03 = o.s_h03 + $100,
+    s_h04 = o.s_h04 + $101, s_h05 = o.s_h05 + $102, s_h06 = o.s_h06 + $103, s_h07 = o.s_h07 + $104,
+    s_h08 = o.s_h08 + $105, s_h09 = o.s_h09 + $106, s_h10 = o.s_h10 + $107, s_h11 = o.s_h11 + $108,
+    s_h12 = o.s_h12 + $109, s_h13 = o.s_h13 + $110, s_h14 = o.s_h14 + $111, s_h15 = o.s_h15 + $112,
+    s_h16 = o.s_h16 + $113, s_h17 = o.s_h17 + $114, s_h18 = o.s_h18 + $115, s_h19 = o.s_h19 + $116,
+    s_h20 = o.s_h20 + $117, s_h21 = o.s_h21 + $118, s_h22 = o.s_h22 + $119, s_h23 = o.s_h23 + $120, 
+
+    total_incoming_messages = o.total_incoming_messages + $121
+where
+    company_id = $122 AND
+    created_at = $123
+returning last_errors, last_hour_with_examples, id
+`
+	errUpdate := dbconn.QueryRow(q,
+		q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
+		q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
+		q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
+		q2[12], q2[13], q2[14], q2[15], q2[16], q2[17], q2[18], q2[19], q2[20], q2[21], q2[22], q2[23],
+		q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7], q3[8], q3[9], q3[10], q3[11],
+		q3[12], q3[13], q3[14], q3[15], q3[16], q3[17], q3[18], q3[19], q3[20], q3[21], q3[22], q3[23],
+		l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], l[10], l[11],
+		l[12], l[13], l[14], l[15], l[16], l[17], l[18], l[19], l[20], l[21], l[22], l[23],
+		s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11],
+		s[12], s[13], s[14], s[15], s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23],
+		totalIncomingMessagesDelta,
+		companyId, day).Scan(&lastErrors, &lastHourWithExamples, &id)
+
+	if nil != errUpdate {
+		// s = successfully received into Fanout
+		// q1 = successful fanout writes
+		// q2 = first forward attempt failed, and msg is put on q2 without errors
+		// q3 = second forward attempt failed, and msg is put on q3 without errors
+		// l = lost: too many retries / unrecoverable error
+		q = `
 INSERT INTO webhook_forwarder_daily_forward_stats as o (
     company_id,
     created_at, 
@@ -239,41 +303,43 @@ SET
 
 returning last_errors, last_hour_with_examples, id
 `
-	var lastErrors []string
-	var lastHourWithExamples int
-	var id int
+		err = dbconn.QueryRow(q, companyId, day,
+			q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
+			q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
+			q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
+			q2[12], q2[13], q2[14], q2[15], q2[16], q2[17], q2[18], q2[19], q2[20], q2[21], q2[22], q2[23],
+			q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7], q3[8], q3[9], q3[10], q3[11],
+			q3[12], q3[13], q3[14], q3[15], q3[16], q3[17], q3[18], q3[19], q3[20], q3[21], q3[22], q3[23],
+			l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], l[10], l[11],
+			l[12], l[13], l[14], l[15], l[16], l[17], l[18], l[19], l[20], l[21], l[22], l[23],
+			s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11],
+			s[12], s[13], s[14], s[15], s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23],
+			totalIncomingMessagesDelta,
+			q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
+			q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
+			q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
+			q2[12], q2[13], q2[14], q2[15], q2[16], q2[17], q2[18], q2[19], q2[20], q2[21], q2[22], q2[23],
+			q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7], q3[8], q3[9], q3[10], q3[11],
+			q3[12], q3[13], q3[14], q3[15], q3[16], q3[17], q3[18], q3[19], q3[20], q3[21], q3[22], q3[23],
+			l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], l[10], l[11],
+			l[12], l[13], l[14], l[15], l[16], l[17], l[18], l[19], l[20], l[21], l[22], l[23],
+			s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11],
+			s[12], s[13], s[14], s[15], s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23],
+			totalIncomingMessagesDelta,
+		).Scan(&lastErrors, &lastHourWithExamples, &id)
+	}
 
-	err = dbconn.QueryRow(q, companyId, day,
-		q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
-		q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
-		q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
-		q2[12], q2[13], q2[14], q2[15], q2[16], q2[17], q2[18], q2[19], q2[20], q2[21], q2[22], q2[23],
-		q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7], q3[8], q3[9], q3[10], q3[11],
-		q3[12], q3[13], q3[14], q3[15], q3[16], q3[17], q3[18], q3[19], q3[20], q3[21], q3[22], q3[23],
-		l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], l[10], l[11],
-		l[12], l[13], l[14], l[15], l[16], l[17], l[18], l[19], l[20], l[21], l[22], l[23],
-		s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11],
-		s[12], s[13], s[14], s[15], s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23],
-		totalIncomingMessagesDelta,
-		q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
-		q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
-		q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
-		q2[12], q2[13], q2[14], q2[15], q2[16], q2[17], q2[18], q2[19], q2[20], q2[21], q2[22], q2[23],
-		q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7], q3[8], q3[9], q3[10], q3[11],
-		q3[12], q3[13], q3[14], q3[15], q3[16], q3[17], q3[18], q3[19], q3[20], q3[21], q3[22], q3[23],
-		l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], l[10], l[11],
-		l[12], l[13], l[14], l[15], l[16], l[17], l[18], l[19], l[20], l[21], l[22], l[23],
-		s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11],
-		s[12], s[13], s[14], s[15], s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23],
-		totalIncomingMessagesDelta,
-	).Scan(&lastErrors, &lastHourWithExamples, &id)
+	if nil != err {
+		fmt.Printf("forwarder.forwardDb.UpdateUsage() Failed to upsert: %v\n", err)
+		return -1, -1, hourNow, err
+	}
 
 	if len(lastErrors) < 10 && "" != errorMessage {
 		lastErrors = append(lastErrors, errorMessage)
 		fmt.Printf("want to appendl: %#v\n", lastErrors)
 
 		counter := 1
-		args := []interface{}{}
+		var args []interface{}
 
 		q = "update webhook_forwarder_daily_forward_stats set last_errors = Array["
 		for _, errm := range lastErrors {
