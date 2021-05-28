@@ -168,7 +168,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						continue
 					}
 
-					fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, outQueueTopicId, elem)
+					//fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, outQueueTopicId, elem)
 					forwarderStats.AddForwardOk(elem.CompanyID, 1)
 				}
 			}
