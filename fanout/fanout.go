@@ -186,6 +186,7 @@ func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 
 func cleanup() {
 	forwarderDb.Cleanup()
+	forwarderStats.Cleanup()
 }
 
 func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {

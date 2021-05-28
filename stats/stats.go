@@ -20,6 +20,10 @@ var StatsMap = make(map[int]*Stats)
 
 var statsMutex sync.Mutex
 
+func Cleanup() {
+	StatsMap = make(map[int]*Stats)
+}
+
 func touchElem(companyId int) *Stats {
 
 	theElem, elementExists := StatsMap[companyId]

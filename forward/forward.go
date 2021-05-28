@@ -217,6 +217,7 @@ func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 
 func cleanup() {
 	forwarderDb.Cleanup()
+	forwarderStats.Cleanup()
 }
 
 func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
@@ -272,7 +273,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 		}
 	}
 
-	fmt.Printf("forwarder.fanout.Fanout(): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", devprod, atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

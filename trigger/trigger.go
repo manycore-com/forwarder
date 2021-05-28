@@ -110,7 +110,12 @@ func asyncSendTriggerPackages(channel *chan int64, waitGroup *sync.WaitGroup, tr
 
 }
 
+func cleanup() {
+	forwarderStats.Cleanup()
+}
+
 func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
+	defer cleanup()
 
 	err := env()
 	if nil != err {

@@ -180,7 +180,13 @@ func Send(payload []byte) error {
 	return nil
 }
 
+func cleanup() {
+	forwarderStats.Cleanup()
+}
+
 func F(w http.ResponseWriter, r *http.Request) {
+	defer cleanup()
+
 	err := env()
 	if nil != err {
 		http.Error(w, "Webhook responder is mis configured", http.StatusInternalServerError)

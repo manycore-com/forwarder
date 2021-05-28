@@ -5,6 +5,7 @@ import (
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -73,4 +74,31 @@ func TestXX(t *testing.T) {
 
 }
 
+func t123() error {
+	var err error
+	if "" != os.Getenv("MAX_NBR_MESSAGES_POLLED") {
+		maxNbrMessagesPolled, err = strconv.Atoi(os.Getenv("MAX_NBR_MESSAGES_POLLED"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_NBR_MESSAGES_POLLED: %v", err)
+		}
+
+		if 1 > maxNbrMessagesPolled {
+			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be at least 1: %v", maxNbrMessagesPolled)
+		}
+
+		if 1000 < maxNbrMessagesPolled {
+			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be max 1000: %v", maxNbrMessagesPolled)
+		}
+	}
+
+	return nil
+}
+
+func TestYY(t *testing.T) {
+	os.Setenv("MAX_NBR_MESSAGES_POLLED", "64")
+
+	e := t123()
+	fmt.Printf("ant: %v, er:%v \n", maxNbrMessagesPolled, e)
+
+}
 
