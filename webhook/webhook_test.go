@@ -155,7 +155,7 @@ func TestFDev(t *testing.T) {
 	os.Setenv("OUT_QUEUE_TOPIC_ID", os.Getenv("FORWARDER_TEST_RESPONDER_SUBS"))
 	os.Setenv("OUT_TRIGGER_TOPIC_ID", os.Getenv("FORWARDER_TEST_RESPONDER_TRG"))
 	os.Setenv("TRIGGER_RATIO", "1")
-	os.Setenv("SIMPLE_HASH_PASSWORD", os.Getenv("FORWARDER_TEST_SIMPLE_HASH_PASSWORD"))
+	os.Setenv("SIMPLE_HASH_PASSWORD", "bob hund") //  os.Getenv("FORWARDER_TEST_SIMPLE_HASH_PASSWORD"))
 
 	// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
 	// pass 'nil' as the third parameter.

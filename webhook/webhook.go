@@ -10,6 +10,7 @@ import (
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -199,6 +200,11 @@ func F(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Error: Body is invalid: %v\n", bodyErr)
 		http.Error(w, bodyErr.Error(), http.StatusBadRequest)
 		return
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	if 0 == rand.Intn(100) {
+		fmt.Printf("Package: %v\n", string(b))
 	}
 
 	// The ESP sign cookie.

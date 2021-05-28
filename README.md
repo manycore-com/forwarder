@@ -5,7 +5,7 @@
 The project goal is to forward webhooks from one endpoint to n others. We use it for our Inboxbooster project which is 
 based on processing of ESP (Email Service Provider) webhooks.
 
-Famously Sendgrid allows only one forward so it is our way to fix it.
+Famously Sendgrid allows only one forward, so it is our way to fix it.
 
 
 It's built for the GCP ecosystem using cloud functions.
@@ -15,6 +15,8 @@ It's licensed under the MIT license. tl;dr: You can use it in your closed source
 project if you want. We appreciate
 bug reports and contributions.
 
+This is the webservices counterpart to
+https://github.com/manycore-com/django-webhook-forwarder
 
 ## How to?
 
