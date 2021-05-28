@@ -238,5 +238,8 @@ func F(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "ok (%s)", forwarderStats.GetMemUsageStr())
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.webhook.F(%s) ok. CompanyId:%d, Memstats: %s\n", devprod, companyId, memUsage)
+
+	fmt.Fprintf(w, "ok (%s)", memUsage)
 }
