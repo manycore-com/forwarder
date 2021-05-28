@@ -399,7 +399,19 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
 		return err
 	}
 
+	var circularPointer0to3 int
 	q = `
+    SELECT
+        circular_pointer_0to3
+    FROM
+        webhook_forwarder_latest_forward_examples
+    WHERE
+        company_id = $1
+`
+	err = dbconn.QueryRow(q, companyId).Scan(&circularPointer0to3)
+
+	if nil != err {
+		q = `
     INSERT INTO webhook_forwarder_latest_forward_examples as o
     (
         company_id,
@@ -415,10 +427,10 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
         circular_pointer_0to3 = o.circular_pointer_0to3
     RETURNING circular_pointer_0to3
     `
-	var circularPointer0to3 int
-	err = dbconn.QueryRow(q, companyId).Scan(&circularPointer0to3)
-	if nil != err {
-		return err
+		err = dbconn.QueryRow(q, companyId).Scan(&circularPointer0to3)
+		if nil != err {
+			return err
+		}
 	}
 
 	exDest := 1 + circularPointer0to3

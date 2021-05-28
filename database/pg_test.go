@@ -41,7 +41,7 @@ func TestGetUserData2(t *testing.T) {
 func TestUpdateErrorMessage(t *testing.T) {
 	forwarderTest.SetEnvVars()
 
-	err := UpdateLastInMessage(1, "klaskatt3", 30, 11)
+	err := UpdateLastInMessage(1, "klaskatt3 90211", 30, 11)
 	if nil != err {
 		t.Errorf("failed to update: %v", err)
 	}

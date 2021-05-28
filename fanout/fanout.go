@@ -147,18 +147,19 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 				}
 
 				forwarderStats.AddPollOk(elem.CompanyID, 1)
-				if ! hasSetMessage[elem.CompanyID] {
-					hasSetMessage[elem.CompanyID] = true
-					payload, err := json.Marshal(elem)
-					if nil == err {
-						forwarderStats.AddInMessage(elem.CompanyID, string(payload))
-					} else {
-						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
-					}
-				}
 
 				for _, forwardUrl := range ci.ForwardUrl {
 					elem.Dest = forwardUrl
+
+					if ! hasSetMessage[elem.CompanyID] {
+						hasSetMessage[elem.CompanyID] = true
+						payload, err := json.Marshal(elem)
+						if nil == err {
+							forwarderStats.AddInMessage(elem.CompanyID, string(payload))
+						} else {
+							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
+						}
+					}
 
 					err = forwarderPubsub.PushElemToPubsub(ctx, outQueueTopic, elem)
 					if err != nil {
