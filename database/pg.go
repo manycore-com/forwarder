@@ -1,9 +1,10 @@
 package forwarderDb
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v4"
 	"os"
 	"strconv"
 	"strings"
@@ -41,13 +42,8 @@ func GetDbConnection() (*pgx.Conn, error) {
 		dbURI = fmt.Sprintf("user=%s password=%s database=%s host=%s", dbUser, dbPwd, dbName, instanceConnectionName)
 	}
 
-	connConfig, err := pgx.ParseConnectionString(dbURI)
-	if err != nil {
-		return nil, err
-	}
+	conn, err := pgx.Connect(context.Background(), dbURI)
 
-	// dbPool is the pool of database connections.
-	conn, err := pgx.Connect(connConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +74,7 @@ func CheckDb() error {
 
 	var minid int
 	q := `select min(id) as x from webhook_forwarder_poll_endpoint`
-	err = dbconn.QueryRow(q).Scan(&minid)
+	err = dbconn.QueryRow(context.Background(), q).Scan(&minid)
 	if nil != err {
 		return err
 	}
@@ -120,7 +116,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
         where company_id = $1
         `
 
-		err = dbconn.QueryRow(q, companyId).Scan(&jsonStr, &secret)
+		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret)
 		if err != nil {
 			if strings.Contains(fmt.Sprintf("%v", err), "no rows in result set") {
 				companyInfoMap[companyId] = nil
@@ -231,7 +227,7 @@ where
     created_at = $123
 returning last_errors, last_hour_with_examples, id
 `
-	errUpdate := dbconn.QueryRow(q,
+	errUpdate := dbconn.QueryRow(context.Background(), q,
 		q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
 		q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
 		q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
@@ -321,7 +317,7 @@ SET
 
 returning last_errors, last_hour_with_examples, id
 `
-		err = dbconn.QueryRow(q, companyId, day,
+		err = dbconn.QueryRow(context.Background(), q, companyId, day,
 			q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7], q1[8], q1[9], q1[10], q1[11],
 			q1[12], q1[13], q1[14], q1[15], q1[16], q1[17], q1[18], q1[19], q1[20], q1[21], q1[22], q1[23],
 			q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7], q2[8], q2[9], q2[10], q2[11],
@@ -376,7 +372,7 @@ returning last_errors, last_hour_with_examples, id
 		counter += 2
 		args = append(args, companyId)
 		args = append(args, day)
-		_, err := dbconn.Exec(q, args...)
+		_, err := dbconn.Exec(context.Background(), q, args...)
 		if err != nil {
 			fmt.Printf("Failed to set last_errors: %#v  err:%v  q:%v\n", lastErrors, err, q)
 		}
@@ -412,7 +408,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
     where
         id = $2
     `
-	_, err = dbconn.Exec(q, hourNow, forwardStatsId)
+	_, err = dbconn.Exec(context.Background(), q, hourNow, forwardStatsId)
 	if err != nil {
 		return err
 	}
@@ -426,7 +422,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
     WHERE
         company_id = $1
 `
-	err = dbconn.QueryRow(q, companyId).Scan(&circularPointer0to3)
+	err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&circularPointer0to3)
 
 	if nil != err {
 		q = `
@@ -445,7 +441,7 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
         circular_pointer_0to3 = o.circular_pointer_0to3
     RETURNING circular_pointer_0to3
     `
-		err = dbconn.QueryRow(q, companyId).Scan(&circularPointer0to3)
+		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&circularPointer0to3)
 		if nil != err {
 			return err
 		}
@@ -461,13 +457,13 @@ func UpdateLastInMessage(companyId int, errorMessage string, forwardStatsId int,
     WHERE
         company_id = $3
     `
-	_, err = dbconn.Exec(q, circularPointer0to3, errorMessage, companyId)
+	_, err = dbconn.Exec(context.Background(), q, circularPointer0to3, errorMessage, companyId)
 	return err
 }
 
 func Cleanup() {
 	if globalDb != nil {
-		err := globalDb.Close()
+		err := globalDb.Close(context.Background())
 		if nil != err {
 			fmt.Printf("Forwarder.pg.Cleanup() Error closing db: %v", err)
 		}
