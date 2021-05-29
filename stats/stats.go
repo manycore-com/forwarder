@@ -21,6 +21,7 @@ var StatsMap = make(map[int]*Stats)
 var statsMutex sync.Mutex
 
 func Cleanup() {
+	fmt.Printf("forwarder.stats.Cleanup(): wiping data\n")
 	StatsMap = make(map[int]*Stats)
 }
 
