@@ -76,7 +76,7 @@ func receiveEventsFromPubsubPoller(
 				cancel()
 				msg.Nack()
 			} else {
-				fmt.Printf("Message: %#v age:%v\n", elem, AgeInSecMessage(msg))
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() age:%v, Message: %#v\n", AgeInSecMessage(msg), elem)
 				*ackQueue <- msg
 				*pubsubForwardChan <- &elem
 			}
@@ -84,7 +84,7 @@ func receiveEventsFromPubsubPoller(
 			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)
 		}
 
-		if (received + nbrReceivedBefore) > maxPolled {
+		if (received + nbrReceivedBefore) >= maxPolled {
 			cancel()
 		}
 	})

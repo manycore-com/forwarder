@@ -23,3 +23,27 @@ func TestReceiveEventsFromPubsub(t *testing.T) {
 	}
 
 }
+
+func TestMisc(t *testing.T) {
+	var maxPollPerRun int = 64
+	var pollMax = 1000
+
+	var nbrItemsInt64 int64 = 1
+	pollMax = int(nbrItemsInt64)
+
+	if pollMax > maxPollPerRun {
+		pollMax = maxPollPerRun
+	}
+
+	var timeout int
+	if pollMax > 500 {
+		timeout = 60
+	} else if timeout > 100 {
+		timeout = 30
+	} else {
+		timeout = 15
+	}
+
+	fmt.Printf("timeout: %v, pollMax:%v\n", timeout, pollMax)
+
+}
