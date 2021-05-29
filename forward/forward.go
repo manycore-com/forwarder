@@ -251,7 +251,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, nbrAckWorkers, maxNbrMessagesPolled, &pubsubForwardChan)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.fanout.Fanout(%s) failed to receive events: %v\n", devprod, err)
+		fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", devprod, err)
 	}
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
@@ -276,11 +276,11 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 		}
 
 		if err != nil {
-			fmt.Printf("forwarder.fanout.Fanout(%s): Failed to update stats for company=%d. Error: %v\n", devprod, companyId, err)
+			fmt.Printf("forwarder.forward.Forward(%s): Failed to update stats for company=%d. Error: %v\n", devprod, companyId, err)
 		}
 	}
 
-	fmt.Printf("forwarder.fanout.Fanout(%s): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", devprod, atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", devprod, atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
