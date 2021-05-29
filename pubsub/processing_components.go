@@ -37,7 +37,7 @@ func asyncAckMessages(devprod string, ackQueue *chan *pubsub.Message, ackWaitGro
 					//fmt.Printf("asyncAckMessages(%s,%d) done.\n", devprod, idx)
 					break
 				} else {
-					//fmt.Printf("asyncAckMessages(%s,%d) ack message: %v\n", devprod, idx, *msg)
+					fmt.Printf("asyncAckMessages(%s,%d) ack message: %v\n", devprod, idx, *msg)
 					msg.Ack()
 				}
 			}
