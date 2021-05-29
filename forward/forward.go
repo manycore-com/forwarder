@@ -228,6 +228,13 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	defer cleanup()
 
+	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
+	err = forwarderDb.CheckDb()
+	if nil != err {
+		fmt.Printf("forwarder.forward.Forward(%s): Db check failed: %v\n", devprod, err)
+		return err
+	}
+
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
 	defer close(pubsubFailureChan)
 	var failureWaitGroup sync.WaitGroup

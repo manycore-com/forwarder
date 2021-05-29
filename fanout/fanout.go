@@ -198,6 +198,13 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	defer cleanup()
 
+	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
+	err = forwarderDb.CheckDb()
+	if nil != err {
+		fmt.Printf("forwarder.fanout.Fanout(%s): Db check failed: %v\n", devprod, err)
+		return err
+	}
+
 	// The webhook posts to the topic feeding inSubscriptionId
 
 	// ReceiveEventsFromPubsub is a blocking function that populates pubsubForwardChan with at most maxNbrMessagesPolled

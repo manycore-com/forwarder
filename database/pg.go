@@ -67,6 +67,24 @@ type OneJsonRow struct {
 
 var companyInfoMap = make(map[int]*CompanyInfo)
 
+func CheckDb() error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return err
+	}
+
+	var minid int
+	q := `select min(id) as x from webhook_forwarder_poll_endpoint`
+	err = dbconn.QueryRow(q).Scan(&minid)
+	if nil != err {
+		return err
+	}
+	return nil
+}
+
 func GetUserData(companyId int) (*CompanyInfo, error) {
 
 	// FIXME not necessarily ideal. A db read blocks a cached read.

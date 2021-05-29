@@ -55,3 +55,11 @@ func TestGetUserData(t *testing.T) {
 	assert.NoError(t, err, "Failed to get user data")
 	fmt.Printf("User data: %#v\n", *ci)
 }
+
+
+func TestCheckDb(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	err := CheckDb()
+	assert.NoErrorf(t, err, "CheckDb failed")
+}
