@@ -19,32 +19,6 @@ type PubSubElement struct {
 	Dest          string  // added here in fanout.
 }
 
-// This decouples msg.Ack() from the other flow.
-func asyncAckMessages(devprod string, ackQueue *chan *pubsub.Message, ackWaitGroup *sync.WaitGroup, nbrAckWorker int) {
-
-	for i := 0; i < nbrAckWorker; i++ {
-
-		ackWaitGroup.Add(1)
-
-		go func(idx int, ackWaitGroup *sync.WaitGroup) {
-
-			defer ackWaitGroup.Done()
-
-			for {
-
-				msg := <- *ackQueue
-				if nil == msg {
-					//fmt.Printf("asyncAckMessages(%s,%d) done.\n", devprod, idx)
-					break
-				} else {
-					fmt.Printf("asyncAckMessages(%s,%d) ack message: %v\n", devprod, idx, *msg)
-					msg.Ack()
-				}
-			}
-		} (i, ackWaitGroup)
-	}
-}
-
 // I don't know how to "give me 1000 objects in max 60s". It seems to always wait for 60s. So I do a small timeout
 // and increase it if there are actual messages.
 func receiveEventsFromPubsubPoller(
@@ -54,8 +28,7 @@ func receiveEventsFromPubsubPoller(
 	timeoutSeconds int,
 	minAgeSec int,
 	nbrReceivedBefore int,
-	maxPolled int,
-	ackQueue *chan *pubsub.Message) (int, error) {
+	maxPolled int) (int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds) * time.Second)
 	defer cancel()
@@ -76,8 +49,8 @@ func receiveEventsFromPubsubPoller(
 				cancel()
 				msg.Nack()
 			} else {
-				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() age:%v, Message: %#v\n", AgeInSecMessage(msg), elem)
-				*ackQueue <- msg
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() age:%v, Message: %#v immediate Ack\n", AgeInSecMessage(msg), elem)
+				msg.Ack()
 				*pubsubForwardChan <- &elem
 			}
 		} else {
@@ -116,12 +89,6 @@ func ReceiveEventsFromPubsub(
 	subscription.ReceiveSettings.Synchronous = true
 	subscription.ReceiveSettings.MaxOutstandingMessages = nbrAckWorker  // There are less thoughts about this than you think
 
-	ackQueue := make(chan *pubsub.Message, 2000)
-	defer close(ackQueue)
-	var ackWaitGroup sync.WaitGroup
-
-	asyncAckMessages(devprod, &ackQueue, &ackWaitGroup, nbrAckWorker)
-
 	var nbrReceivedTotal = 0
 	var err error = nil
 	var pollMax = 1000
@@ -151,14 +118,7 @@ func ReceiveEventsFromPubsub(
 		timeout = 15
 	}
 
-	nbrReceivedTotal, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax, &ackQueue)
-
-	for i:=0; i< nbrAckWorker; i++ {
-		ackQueue <- nil
-	}
-
-	fmt.Printf("receiveEventsFromPubsub(%s): waiting for ackWaitGroup...\n", devprod)
-	ackWaitGroup.Wait()
+	nbrReceivedTotal, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax)
 
 	fmt.Printf("receiveEventsFromPubsub(%s): done. NbrReceived=%d, err=%v\n", devprod, nbrReceivedTotal, err)
 

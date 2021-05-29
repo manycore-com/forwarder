@@ -12,7 +12,7 @@ import (
 )
 
 func TestCalculateHashFromSecret(t *testing.T) {
-	fmt.Printf("local hash: %s\n", CalculateSafeHashFromSecret("75bbbb3e-00c1-43e6-a846-10dc183161a4"))
+	fmt.Printf("local hash: %s\n", CalculateSafeHashFromSecret("0f33e12b-97f1-40b0-9ec7-7a86941886a9"))
 }
 
 func TestAsyncFanout(t *testing.T) {
@@ -40,7 +40,7 @@ func TestAsyncFanout(t *testing.T) {
       "sg_message_id":"sg_message_id"
     }
 ]`
-	var x = forwarderPubsub.PubSubElement{CompanyID: 1, ESP: "sg", ESPJsonString: okPayload, Ts: time.Now().Unix(), SafeHash: "x", Sign: "", Dest: ""}
+	var x = forwarderPubsub.PubSubElement{CompanyID: 1, ESP: "sg", ESPJsonString: okPayload, Ts: time.Now().Unix(), SafeHash: "09e0190b36476d1a960669bdb1dd0111", Sign: "", Dest: ""}
 	pubsubForwardChan <- &x
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
