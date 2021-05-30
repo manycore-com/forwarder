@@ -15,7 +15,7 @@ func TestReceiveEventsFromPubsub(t *testing.T) {
 	defer close(pubsubForwardChan)
 	//var forwardWaitGroup sync.WaitGroup
 
-	nbrReceived, err := ReceiveEventsFromPubsub(os.Getenv("DEV_OR_PROD"), os.Getenv("PROJECT_ID"), os.Getenv("OUT_QUEUE_TOPIC_ID"), 0, 4, 4, &pubsubForwardChan)
+	nbrReceived, err := ReceiveEventsFromPubsub(os.Getenv("DEV_OR_PROD"), os.Getenv("PROJECT_ID"), os.Getenv("OUT_QUEUE_TOPIC_ID"), 0, 4, 4, &pubsubForwardChan, 250)
 	if nil != err {
 		fmt.Printf("forwarder.pubsub.TestReceiveEventsFromPubsub(): Failed to poll: %v\n", err)
 	} else {

@@ -21,6 +21,7 @@ var nbrAckWorkers = 32
 var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
 var atQueue = -1
+var maxPubsubQueueIdleMs = 250
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -98,6 +99,21 @@ func env() error {
 		minAgeSecs, err = strconv.Atoi(os.Getenv("MIN_AGE_SECS"))
 		if nil != err {
 			return fmt.Errorf("failed to parse integer MIN_AGE_SECS: %v", err)
+		}
+	}
+
+	if "" != os.Getenv("MAX_PUBSUB_QUEUE_IDLE_MS") {
+		maxPubsubQueueIdleMs, err = strconv.Atoi(os.Getenv("MAX_PUBSUB_QUEUE_IDLE_MS"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_PUBSUB_QUEUE_IDLE_MS: %v", err)
+		}
+
+		if 100 > maxPubsubQueueIdleMs {
+			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be at least 100: %v\n", maxPubsubQueueIdleMs)
+		}
+
+		if 10000 < maxPubsubQueueIdleMs {
+			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be max 10000: %v\n", maxPubsubQueueIdleMs)
 		}
 	}
 
@@ -248,7 +264,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, nbrAckWorkers, maxNbrMessagesPolled, &pubsubForwardChan)
+	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, nbrAckWorkers, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", devprod, err)
