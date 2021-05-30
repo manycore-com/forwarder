@@ -140,16 +140,23 @@ func ReceiveEventsFromPubsub(
 		return 0, nil
 	}
 
-	var timeout int
-	if pollMax > 500 {
-		timeout = 60
-	} else if timeout > 100 {
-		timeout = 30
-	} else {
-		timeout = 15
-	}
+	var nbrReceived int = 0
 
-	nbrReceivedTotal, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax, maxPubsubQueueIdleMs)
+	var timeout int = 30
+	nbrReceived, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs)
+
+	nbrReceivedTotal += nbrReceived
+
+	if pollMax > 5 {
+		if (pollMax * 2 / 3 ) > nbrReceivedTotal {
+
+			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): 2nd run: %d > %d", devprod, (pollMax * 2 / 3 ), nbrReceivedTotal)
+
+			timeout = 15
+			nbrReceived, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs)
+			nbrReceivedTotal += nbrReceived
+		}
+	}
 
 	fmt.Printf("receiveEventsFromPubsub(%s): done. NbrReceived=%d, err=%v\n", devprod, nbrReceivedTotal, err)
 
