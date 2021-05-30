@@ -117,7 +117,8 @@ func ReceiveEventsFromPubsub(
 
 	subscription := client.Subscription(subscriptionId)
 	subscription.ReceiveSettings.Synchronous = true
-	subscription.ReceiveSettings.MaxOutstandingMessages = nbrAckWorker  // There are less thoughts about this than you think
+	subscription.ReceiveSettings.MaxOutstandingMessages = maxPollPerRun  // There are less thoughts about this than you think
+	subscription.ReceiveSettings.MaxOutstandingBytes = 20000000
 
 	var nbrReceivedTotal = 0
 	var err error = nil
