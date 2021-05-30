@@ -55,7 +55,7 @@ func receiveEventsFromPubsubPoller(
 
 			var rightNow = time.Now().UnixNano() / 1000000
 			if (int64(maxPubsubQueueIdleMs) + copyOfLastAtMs) < rightNow {
-				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller.func() Killing Receive due to %dms inactivity.", maxPubsubQueueIdleMs)
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller.func() Killing Receive due to %dms inactivity.\n", maxPubsubQueueIdleMs)
 				cancel()
 				return
 			}
@@ -150,7 +150,7 @@ func ReceiveEventsFromPubsub(
 	if pollMax > 5 {
 		if (pollMax * 2 / 3 ) > nbrReceivedTotal {
 
-			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): 2nd run: %d > %d", devprod, (pollMax * 2 / 3 ), nbrReceivedTotal)
+			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): 2nd run: %d > %d\n", devprod, (pollMax * 2 / 3 ), nbrReceivedTotal)
 
 			timeout = 15
 			nbrReceived, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs)

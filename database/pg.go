@@ -465,7 +465,7 @@ func Cleanup() {
 	if globalDb != nil {
 		err := globalDb.Close(context.Background())
 		if nil != err {
-			fmt.Printf("Forwarder.pg.Cleanup() Error closing db: %v", err)
+			fmt.Printf("Forwarder.pg.Cleanup() Error closing db: %v\n", err)
 		}
 		globalDb = nil
 	}
