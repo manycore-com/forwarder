@@ -36,6 +36,31 @@ func receiveEventsFromPubsubPoller(
 	var mu sync.Mutex
 	received := 0
 
+	var runTick = true
+	var startMs = time.Now().UnixNano() / 1000000
+	// 3000ms was too low for local machine. 8000ms was enough. It's reset after first received message.
+	var lastAtMs = startMs + 5000
+	go func() {
+		for {
+			time.Sleep(time.Millisecond * 100)
+			mu.Lock()
+			var copyOfRunTick = runTick
+			var copyOfLastAtMs = lastAtMs
+			mu.Unlock()
+
+			if !copyOfRunTick {
+				return
+			}
+
+			var rightNow = time.Now().UnixNano() / 1000000
+			if (200 + copyOfLastAtMs) < rightNow {
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller.func() Killing Receive due to 200ms inactivity.")
+				cancel()
+				return
+			}
+		}
+	} ()
+
 	minAgeSecF64 := float64(minAgeSec)
 	err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
 		mu.Lock()
@@ -48,10 +73,12 @@ func receiveEventsFromPubsubPoller(
 			if AgeInSecMessage(msg) < minAgeSecF64 {
 				cancel()
 				msg.Nack()
+				runTick = false
 			} else {
 				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() age:%v, Message: %#v immediate Ack\n", AgeInSecMessage(msg), elem)
 				msg.Ack()
 				*pubsubForwardChan <- &elem
+				lastAtMs = time.Now().UnixNano() / 1000000
 			}
 		} else {
 			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)
@@ -59,6 +86,7 @@ func receiveEventsFromPubsubPoller(
 
 		if (received + nbrReceivedBefore) >= maxPolled {
 			cancel()
+			runTick = false
 		}
 	})
 
