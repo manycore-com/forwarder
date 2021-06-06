@@ -171,7 +171,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						hasSetMessage[elem.CompanyID] = true
 						payload, err := json.Marshal(elem)
 						if nil == err {
-							forwarderStats.AddErrorMessageV2(elem.CompanyID, string(payload))
+							forwarderStats.AddExampleV2(elem.CompanyID, string(payload))
 						} else {
 							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
 						}
