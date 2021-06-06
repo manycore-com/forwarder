@@ -181,7 +181,7 @@ func Send(payload []byte) error {
 }
 
 func cleanup() {
-	forwarderStats.Cleanup()
+	forwarderStats.CleanupV2()
 }
 
 func F(w http.ResponseWriter, r *http.Request) {

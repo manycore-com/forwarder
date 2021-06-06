@@ -126,7 +126,6 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 	for i:=0; i<nbrPublishWorkers; i++ {
 		failureWaitGroup.Add(1)
 		go func(idx int, failureWaitGroup *sync.WaitGroup) {
-
 			defer failureWaitGroup.Done()
 
 			ctx1, client, nextForwardTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, nextTopicId)
@@ -147,21 +146,18 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 				}
 
 				if "" == nextTopicId {
-					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
 					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Failure: too many errors: %#v\n", devprod, idx, elem)
 					continue
 				}
 
 				err = forwarderPubsub.PushElemToPubsub(ctx1, nextForwardTopic, elem)
 				if err != nil {
-					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+					forwarderStats.AddLostMessagesV2(elem.CompanyID)
 					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
 					continue
 				}
 
-				forwarderStats.AddForwardError(elem.CompanyID, 1)
 				fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
-
 			}
 		} (i, failureWaitGroup)
 	}
@@ -195,7 +191,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 
 				if elem.Ts < dieIfTsLt {
 					fmt.Printf("forwarder.forward.asyncForward(%s) Package died of old age\n", devprod)
-					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+					forwarderStats.AddLostMessagesV2(elem.CompanyID)
 					continue
 				}
 
@@ -208,13 +204,14 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					err, anyPointToRetry = forwarderEsp.ForwardSg(devprod, elem)
 				} else {
 					fmt.Printf("forwarder.forward.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
-					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
-					forwarderStats.AddErrorMessage(elem.CompanyID, "Only sendgrid is supported for now. esp=" + elem.ESP)
+					forwarderStats.AddLostMessagesV2(elem.CompanyID)
+					forwarderStats.AddErrorMessageV2(elem.CompanyID, "Only sendgrid is supported for now. esp=" + elem.ESP)
 					continue
 				}
 
 				if nil == err {
-					forwarderStats.AddForwardOk(elem.CompanyID,1)
+					forwarderStats.AddForwardedAtHV2(elem.CompanyID)
+					forwarderStats.AddAgeWhenForwardV2(elem.CompanyID, elem.Ts)
 				} else {
 
 					fmt.Printf("forwarder.forward.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
@@ -223,7 +220,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 						// Stats calculated by asyncFailureProcessing
 						*pubsubFailureChan <- elem
 					} else {
-						forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+						forwarderStats.AddLostMessagesV2(elem.CompanyID)
 					}
 				}
 			}
@@ -242,7 +239,7 @@ func takeDownAsyncForward(pubsubFailureChan *chan *forwarderPubsub.PubSubElement
 
 func cleanup() {
 	forwarderDb.Cleanup()
-	forwarderStats.Cleanup()
+	//forwarderStats.CleanupV2()  // done in WriteStatsToDbV2()
 }
 
 func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
@@ -283,29 +280,9 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
-	var nbrForwardOk = 0
-	var nbrForwardError = 0
-	var nbrForwardDrop = 0
-	for companyId, s := range forwarderStats.StatsMap {
-		nbrForwardOk += s.ForwardOk
-		nbrForwardError += s.ForwardError
-		nbrForwardDrop += s.ForwardDrop
+	nbrForwarded, nbrLost := forwarderDb.WriteStatsToDbV2()
 
-		var err error
-		if 1 == atQueue {
-			_, _, _, err = forwarderDb.UpdateUsage(companyId, s.ForwardError, 0, 0, s.ForwardDrop, s.ForwardOk, s.ErrorMessage, 0)
-		} else if 2 == atQueue {
-			_, _, _, err = forwarderDb.UpdateUsage(companyId, 0, s.ForwardError, 0, s.ForwardDrop, s.ForwardOk, s.ErrorMessage, 0)
-		} else if 3 == atQueue {
-			_, _, _, err = forwarderDb.UpdateUsage(companyId, 0, 0, s.ForwardError, s.ForwardDrop, s.ForwardOk, s.ErrorMessage, 0)
-		}
-
-		if err != nil {
-			fmt.Printf("forwarder.forward.Forward(%s): Failed to update stats for company=%d. Error: %v\n", devprod, companyId, err)
-		}
-	}
-
-	fmt.Printf("forwarder.forward.Forward(%s): done. atQueue:%d, # forward: %d, # error: %d, # drop: %d,  Memstats: %s\n", devprod, atQueue, nbrForwardOk, nbrForwardError, nbrForwardDrop, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s): done. # forward: %d, # drop: %d,  Memstats: %s\n", devprod, nbrForwarded, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

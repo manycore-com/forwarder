@@ -17,6 +17,7 @@ func TestAgeInSecMessage(t *testing.T) {
 
 
 func TestXX(t *testing.T) {
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GOOGLE_APPLICATION_CREDENTIALS"))
 	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())  // 1/1
 
 	devprod := "dev"
@@ -63,10 +64,12 @@ func TestXX(t *testing.T) {
 // 3000 el:  Alloc: 3MB, total alloc: 10MB, sys: 68, # gc: 4
 // 5000 el:  Alloc: 2MB, total alloc: 10MB, sys: 68, # gc: 5
 func TestCheckNbrItemsPubsub(t *testing.T) {
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GOOGLE_APPLICATION_CREDENTIALS"))
+	fmt.Printf("proj: %s\n", os.Getenv("FORWARDER_TEST_PROJECT_ID"))
 	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
 
 	for i:=0; i<30; i++ {
-		itemsPubsub, err := CheckNbrItemsPubsub(os.Getenv("FORWARDER_TEST_PROJECT_ID"), "INBOXBOOSTER_DEVPROD_QUEUE1")
+		itemsPubsub, err := CheckNbrItemsPubsub(os.Getenv("FORWARDER_TEST_PROJECT_ID"), "TESTING")
 		if err != nil {
 			fmt.Printf("Error: %v\n",err)
 			return

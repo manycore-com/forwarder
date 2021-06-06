@@ -153,7 +153,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 
 				if hashHead != elem.SafeHash {
 					fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
-					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+					forwarderStats.AddLostMessagesV2(elem.CompanyID)
 					continue
 				}
 
@@ -162,7 +162,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				forwarderStats.AddPollOk(elem.CompanyID, 1)
+				forwarderStats.AddReceivedAtHV2(elem.CompanyID)
 
 				for _, forwardUrl := range ci.ForwardUrl {
 					elem.Dest = forwardUrl
@@ -171,7 +171,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						hasSetMessage[elem.CompanyID] = true
 						payload, err := json.Marshal(elem)
 						if nil == err {
-							forwarderStats.AddInMessage(elem.CompanyID, string(payload))
+							forwarderStats.AddErrorMessageV2(elem.CompanyID, string(payload))
 						} else {
 							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
 						}
@@ -180,12 +180,9 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					err = forwarderPubsub.PushElemToPubsub(ctx, outQueueTopic, elem)
 					if err != nil {
 						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
-						forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+						forwarderStats.AddLostMessagesV2(elem.CompanyID)
 						continue
 					}
-
-					//fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, outQueueTopicId, elem)
-					forwarderStats.AddForwardOk(elem.CompanyID, 1)
 				}
 			}
 
@@ -203,7 +200,7 @@ func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 
 func cleanup() {
 	forwarderDb.Cleanup()
-	forwarderStats.Cleanup()
+	//forwarderStats.CleanupV2()  // done in WriteStatsToDbV2()
 }
 
 func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
@@ -245,33 +242,9 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
-	var nbrPolled = 0
-	var nbrForwardOk = 0
-	var nbrForwardDrop = 0
-	for companyId, s := range forwarderStats.StatsMap {
-		nbrPolled += s.PollOk
-		nbrForwardOk += s.ForwardOk
-		nbrForwardDrop += s.ForwardDrop
+	_, nbrLost := forwarderDb.WriteStatsToDbV2()
 
-		var id int
-		var prevHour int
-		var hourNow int
-		var err error
-		id, prevHour, hourNow, err = forwarderDb.UpdateUsage(companyId, s.ForwardOk, 0, 0, s.ForwardDrop, 0, "", s.PollOk)
-
-		if err != nil {
-			fmt.Printf("forwarder.fanout.Fanout(%s): Failed to update stats for company=%d. Error: %v\n", devprod, companyId, err)
-		} else {
-			if prevHour != hourNow && "" != s.InMessage {
-				err = forwarderDb.UpdateLastInMessage(companyId, s.InMessage, id, hourNow)
-				if err != nil {
-					fmt.Printf("forwarder.fanout.Fanout(%s): Failed to update incoming message for company=%d. Error: %v\n", devprod, companyId, err)
-				}
-			}
-		}
-	}
-
-	fmt.Printf("forwarder.fanout.Fanout(): done. # poll: %d, # enqueued: %d, # drop: %d,  Memstats: %s\n", nbrPolled, nbrForwardOk, nbrForwardDrop, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s): done. # drop: %d,  Memstats: %s\n", devprod, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

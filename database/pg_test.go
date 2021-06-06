@@ -2,6 +2,7 @@ package forwarderDb
 
 import (
 	"fmt"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -62,4 +63,13 @@ func TestCheckDb(t *testing.T) {
 
 	err := CheckDb()
 	assert.NoErrorf(t, err, "CheckDb failed")
+}
+
+func TestWriteStatsToDbV2(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	forwarderStats.AddForwardedAtHV2(1)
+	forwarderStats.AddErrorMessageV2(1,"klaskatt2")
+	forwarderStats.AddExampleV2(1, "some example")
+	WriteStatsToDbV2()
 }

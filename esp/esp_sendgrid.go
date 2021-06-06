@@ -14,14 +14,14 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 
 	if "" == elem.Dest {
 		// This should never never happen
-		forwarderStats.AddErrorMessage(elem.CompanyID, "Missing destination URL.")
+		forwarderStats.AddErrorMessageV2(elem.CompanyID, "Missing destination URL.")
 		return fmt.Errorf("forwarder.forward.forwardMg(%s): Missing Dest url", devprod), false
 	}
 
 	// ok, time to forward
 	request, err := http.NewRequest("POST", elem.Dest, bytes.NewReader([]byte(elem.ESPJsonString)))
 	if err != nil {
-		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
+		forwarderStats.AddErrorMessageV2(elem.CompanyID, err.Error())
 		return err, true
 	}
 	request.Close = true
@@ -37,7 +37,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 
 	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
-		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
+		forwarderStats.AddErrorMessageV2(elem.CompanyID, err.Error())
 		if resp == nil {
 			return err, false
 		} else {
@@ -47,7 +47,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
+			forwarderStats.AddErrorMessageV2(elem.CompanyID, err.Error())
 			fmt.Printf("forwarder.forward.forwardMg(%s): Error closing Body:%v\n", devprod, err)
 		}
 	} (resp.Body)
@@ -58,7 +58,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 
 	// TODO check that status code is in 2xx range?
 	if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-		forwarderStats.AddErrorMessage(elem.CompanyID, resp.Status)
+		forwarderStats.AddErrorMessageV2(elem.CompanyID, resp.Status)
 		return fmt.Errorf("forwardMg(%s): Bad status:%s companyId:%d url:%s", devprod, resp.Status, elem.CompanyID, elem.Dest), true
 	}
 

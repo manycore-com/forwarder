@@ -111,7 +111,7 @@ func asyncSendTriggerPackages(channel *chan int64, waitGroup *sync.WaitGroup, tr
 }
 
 func cleanup() {
-	forwarderStats.Cleanup()
+	forwarderStats.CleanupV2()
 }
 
 func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
