@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var projectId = ""
@@ -22,6 +23,7 @@ var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
 var atQueue = -1
 var maxPubsubQueueIdleMs = 250
+var maxMessageAge = 3600 * 12
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -177,6 +179,7 @@ func takeDownAsyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.Pub
 
 func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup, pubsubFailureChan *chan *forwarderPubsub.PubSubElement) {
 
+	var dieIfTsLt = time.Now().Unix() - int64(maxMessageAge)
 	for i := 0; i < nbrPublishWorkers; i++ {
 		forwardWaitGroup.Add(1)
 
@@ -188,6 +191,12 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 				if nil == elem {
 					//fmt.Printf("forwarder.forward.asyncForward(%s,%d): done.\n", devprod, idx)
 					break
+				}
+
+				if elem.Ts < dieIfTsLt {
+					fmt.Printf("forwarder.forward.asyncForward(%s) Package died of old age\n", devprod)
+					forwarderStats.AddForwardDrop(elem.CompanyID, 1)
+					continue
 				}
 
 				var err error = nil
@@ -223,7 +232,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 	}
 }
 
-func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup) {
+func takeDownAsyncForward(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup) {
 	for i:=0; i<nbrPublishWorkers; i++ {
 		*pubsubFailureChan <- nil
 	}
@@ -270,7 +279,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 		fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", devprod, err)
 	}
 
-	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
+	takeDownAsyncForward(&pubsubForwardChan, &forwardWaitGroup)
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
