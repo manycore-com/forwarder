@@ -745,4 +745,5 @@ func Cleanup() {
 		}
 		globalDb = nil
 	}
+	companyInfoMap = make(map[int]*CompanyInfo)
 }
