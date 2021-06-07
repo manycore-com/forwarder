@@ -153,7 +153,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 
 				if hashHead != elem.SafeHash {
 					fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
-					forwarderStats.AddLostMessagesV2(elem.CompanyID)
+					forwarderStats.AddLost(elem.CompanyID)
 					continue
 				}
 
@@ -162,7 +162,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				forwarderStats.AddReceivedAtHV2(elem.CompanyID)
+				forwarderStats.AddReceivedAtH(elem.CompanyID)
 
 				for _, forwardUrl := range ci.ForwardUrl {
 					elem.Dest = forwardUrl
@@ -171,7 +171,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						hasSetMessage[elem.CompanyID] = true
 						payload, err := json.Marshal(elem)
 						if nil == err {
-							forwarderStats.AddExampleV2(elem.CompanyID, string(payload))
+							forwarderStats.AddExample(elem.CompanyID, string(payload))
 						} else {
 							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
 						}
@@ -180,7 +180,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					err = forwarderPubsub.PushElemToPubsub(ctx, outQueueTopic, elem)
 					if err != nil {
 						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
-						forwarderStats.AddLostMessagesV2(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID)
 						continue
 					}
 				}
@@ -200,7 +200,7 @@ func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 
 func cleanup() {
 	forwarderDb.Cleanup()
-	//forwarderStats.CleanupV2()  // done in WriteStatsToDbV2()
+	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
 func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
@@ -242,7 +242,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
-	_, nbrLost := forwarderDb.WriteStatsToDbV2()
+	_, nbrLost := forwarderDb.WriteStatsToDb()
 
 	fmt.Printf("forwarder.fanout.Fanout(%s): done. # drop: %d,  Memstats: %s\n", devprod, nbrLost, forwarderStats.GetMemUsageStr())
 

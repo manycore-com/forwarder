@@ -152,7 +152,7 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 
 				err = forwarderPubsub.PushElemToPubsub(ctx1, nextForwardTopic, elem)
 				if err != nil {
-					forwarderStats.AddLostMessagesV2(elem.CompanyID)
+					forwarderStats.AddLost(elem.CompanyID)
 					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
 					continue
 				}
@@ -191,7 +191,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 
 				if elem.Ts < dieIfTsLt {
 					fmt.Printf("forwarder.forward.asyncForward(%s) Package died of old age\n", devprod)
-					forwarderStats.AddLostMessagesV2(elem.CompanyID)
+					forwarderStats.AddTimeout(elem.CompanyID)
 					continue
 				}
 
@@ -204,14 +204,14 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					err, anyPointToRetry = forwarderEsp.ForwardSg(devprod, elem)
 				} else {
 					fmt.Printf("forwarder.forward.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
-					forwarderStats.AddLostMessagesV2(elem.CompanyID)
-					forwarderStats.AddErrorMessageV2(elem.CompanyID, "Only sendgrid is supported for now. esp=" + elem.ESP)
+					forwarderStats.AddLost(elem.CompanyID)
+					forwarderStats.AddErrorMessage(elem.CompanyID, "Only sendgrid is supported for now. esp=" + elem.ESP)
 					continue
 				}
 
 				if nil == err {
-					forwarderStats.AddForwardedAtHV2(elem.CompanyID)
-					forwarderStats.AddAgeWhenForwardV2(elem.CompanyID, elem.Ts)
+					forwarderStats.AddForwardedAtH(elem.CompanyID)
+					forwarderStats.AddAgeWhenForward(elem.CompanyID, elem.Ts)
 				} else {
 
 					fmt.Printf("forwarder.forward.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
@@ -220,7 +220,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 						// Stats calculated by asyncFailureProcessing
 						*pubsubFailureChan <- elem
 					} else {
-						forwarderStats.AddLostMessagesV2(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID)
 					}
 				}
 			}
@@ -239,7 +239,7 @@ func takeDownAsyncForward(pubsubFailureChan *chan *forwarderPubsub.PubSubElement
 
 func cleanup() {
 	forwarderDb.Cleanup()
-	//forwarderStats.CleanupV2()  // done in WriteStatsToDbV2()
+	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
 func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
@@ -280,7 +280,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
-	nbrForwarded, nbrLost := forwarderDb.WriteStatsToDbV2()
+	nbrForwarded, nbrLost := forwarderDb.WriteStatsToDb()
 
 	fmt.Printf("forwarder.forward.Forward(%s): done. # forward: %d, # drop: %d,  Memstats: %s\n", devprod, nbrForwarded, nbrLost, forwarderStats.GetMemUsageStr())
 

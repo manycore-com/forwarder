@@ -16,7 +16,7 @@ func TestAddReceivedAtH(t *testing.T) {
 		time.Sleep(time.Second * 1)
 	}
 
-	AddReceivedAtHV2(123)
-	AddReceivedAtHV2(1234)
-	assert.Equal(t, 2, AddReceivedAtHV2(123))
+	AddReceivedAtH(123)
+	AddReceivedAtH(1234)
+	assert.Equal(t, 2, AddReceivedAtH(123))
 }

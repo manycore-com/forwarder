@@ -7,22 +7,23 @@ import (
 	"time"
 )
 
-type StatsV2 struct {
-	ReceivedAtH   	[24]int
-	AgeWhenForward	[24]int
-	ForwardedAtH    [24]int
-	Example         string
-	ErrorMessage    string
-	NbrLostMessages int
+type Stats struct {
+	ReceivedAtH    [24]int
+	AgeWhenForward [24]int
+	ForwardedAtH   [24]int
+	Example        string
+	ErrorMessage   string
+	NbrLost        int
+	NbrTimeout     int // mutual exclusive with NbrLost
 }
 
-var StatsMapV2 = make(map[int]*StatsV2)
+var StatsMap = make(map[int]*Stats)
 
-var statsMutexV2 sync.Mutex
+var statsMutex sync.Mutex
 
 func CleanupV2() {
 	fmt.Printf("forwarder.stats.CleanupV2(): wiping data\n")
-	StatsMapV2 = make(map[int]*StatsV2)
+	StatsMap = make(map[int]*Stats)
 }
 
 func epochThenToOffs(epochThen int64) int {
@@ -36,75 +37,84 @@ func epochThenToOffs(epochThen int64) int {
 	return offset
 }
 
-func touchElemV2(companyId int) *StatsV2 {
+func touchElem(companyId int) *Stats {
 
-	theElem, elementExists := StatsMapV2[companyId]
+	theElem, elementExists := StatsMap[companyId]
 	if ! elementExists {
-		theElem = &StatsV2{}
-		StatsMapV2[companyId] = theElem
+		theElem = &Stats{}
+		StatsMap[companyId] = theElem
 	}
 
 	return theElem
 }
 
-func AddReceivedAtHV2(companyId int) int {
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+func AddReceivedAtH(companyId int) int {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
 	hour := time.Now().UTC().Hour()
-	theElem := touchElemV2(companyId)
+	theElem := touchElem(companyId)
 	theElem.ReceivedAtH[hour] += 1
 	return theElem.ReceivedAtH[hour]
 }
 
-func AddAgeWhenForwardV2(companyId int, ts int64) int {
+func AddAgeWhenForward(companyId int, ts int64) int {
 	offs := epochThenToOffs(ts)
 	if offs > 23 {
 		fmt.Printf("forwarder.stats.AddAgeWhenForward(): companyId:%d message %d old!\n", companyId, offs)
 		return -1
 	}
 
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
-	theElem := touchElemV2(companyId)
+	theElem := touchElem(companyId)
 	theElem.AgeWhenForward[offs] += 1
 	return theElem.AgeWhenForward[offs]
 }
 
-func AddForwardedAtHV2(companyId int) int {
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+func AddForwardedAtH(companyId int) int {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
 	hour := time.Now().UTC().Hour()
-	theElem := touchElemV2(companyId)
+	theElem := touchElem(companyId)
 	theElem.ForwardedAtH[hour] += 1
 	return theElem.ForwardedAtH[hour]
 }
 
-func AddExampleV2(companyId int, example string) {
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+func AddExample(companyId int, example string) {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
-	theElem := touchElemV2(companyId)
+	theElem := touchElem(companyId)
 	theElem.Example = example
 }
 
-func AddErrorMessageV2(companyId int, errorMessage string) {
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+func AddErrorMessage(companyId int, errorMessage string) {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
-	theElem := touchElemV2(companyId)
+	theElem := touchElem(companyId)
 	theElem.ErrorMessage = errorMessage
 }
 
-func AddLostMessagesV2(companyId int) int {
-	statsMutexV2.Lock()
-	defer statsMutexV2.Unlock()
+func AddLost(companyId int) int {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
 
-	theElem := touchElemV2(companyId)
-	theElem.NbrLostMessages += 1
-	return theElem.NbrLostMessages
+	theElem := touchElem(companyId)
+	theElem.NbrLost += 1
+	return theElem.NbrLost
+}
+
+func AddTimeout(companyId int) int {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
+
+	theElem := touchElem(companyId)
+	theElem.NbrTimeout += 1
+	return theElem.NbrTimeout
 }
 
 func GetMemUsageMb() (uint64, uint64, uint64, uint32) {

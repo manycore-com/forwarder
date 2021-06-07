@@ -8,13 +8,6 @@ import (
 	"testing"
 )
 
-func TestUpdateUsage(t *testing.T) {
-	forwarderTest.SetEnvVars()
-
-	_, _, _, err := UpdateUsage(1,  1, 2, 3, 4, 5, "Err msg", 6)
-	assert.NoError(t, err, "Failed to update usage")
-}
-
 func TestGetUserData2(t *testing.T) {
 
 	forwarderTest.SetEnvVars()
@@ -39,16 +32,6 @@ func TestGetUserData2(t *testing.T) {
 	}
 }
 
-func TestUpdateErrorMessage(t *testing.T) {
-	forwarderTest.SetEnvVars()
-
-	err := UpdateLastInMessage(1, "klaskatt3 90211", 30, 11)
-	if nil != err {
-		t.Errorf("failed to update: %v", err)
-	}
-
-}
-
 func TestGetUserData(t *testing.T) {
 	forwarderTest.SetEnvVars()
 
@@ -68,8 +51,8 @@ func TestCheckDb(t *testing.T) {
 func TestWriteStatsToDbV2(t *testing.T) {
 	forwarderTest.SetEnvVars()
 
-	forwarderStats.AddForwardedAtHV2(1)
-	forwarderStats.AddErrorMessageV2(1,"klaskatt2")
-	forwarderStats.AddExampleV2(1, "some example")
-	WriteStatsToDbV2()
+	forwarderStats.AddForwardedAtH(1)
+	forwarderStats.AddErrorMessage(1,"klaskatt2")
+	forwarderStats.AddExample(1, "some example")
+	WriteStatsToDb()
 }
