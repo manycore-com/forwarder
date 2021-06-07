@@ -242,34 +242,34 @@ INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
     $75,
     -1,
     -1,
-    0,
-    0
+    $76,
+    $77
 )
 ON CONFLICT (company_id, created_at) DO UPDATE 
 SET 
-    rec_h00 = o.rec_h00 + $76, rec_h01 = o.rec_h01 + $77, rec_h02 = o.rec_h02 + $78, rec_h03 = o.rec_h03 + $79,
-    rec_h04 = o.rec_h04 + $80, rec_h05 = o.rec_h05 + $81, rec_h06 = o.rec_h06 + $82, rec_h07 = o.rec_h07 + $83,
-    rec_h08 = o.rec_h08 + $84, rec_h09 = o.rec_h09 + $85, rec_h10 = o.rec_h10 + $86, rec_h11 = o.rec_h11 + $87,
-    rec_h12 = o.rec_h12 + $88, rec_h13 = o.rec_h13 + $89, rec_h14 = o.rec_h14 + $90, rec_h15 = o.rec_h15 + $91,
-    rec_h16 = o.rec_h16 + $92, rec_h17 = o.rec_h17 + $93, rec_h18 = o.rec_h18 + $94, rec_h19 = o.rec_h19 + $95,
-    rec_h20 = o.rec_h20 + $96, rec_h21 = o.rec_h21 + $97, rec_h22 = o.rec_h22 + $98, rec_h23 = o.rec_h23 + $99, 
+    rec_h00 = o.rec_h00 + $78, rec_h01 = o.rec_h01 + $79, rec_h02 = o.rec_h02 + $80, rec_h03 = o.rec_h03 + $81,
+    rec_h04 = o.rec_h04 + $82, rec_h05 = o.rec_h05 + $83, rec_h06 = o.rec_h06 + $84, rec_h07 = o.rec_h07 + $85,
+    rec_h08 = o.rec_h08 + $86, rec_h09 = o.rec_h09 + $87, rec_h10 = o.rec_h10 + $88, rec_h11 = o.rec_h11 + $89,
+    rec_h12 = o.rec_h12 + $90, rec_h13 = o.rec_h13 + $91, rec_h14 = o.rec_h14 + $92, rec_h15 = o.rec_h15 + $93,
+    rec_h16 = o.rec_h16 + $94, rec_h17 = o.rec_h17 + $95, rec_h18 = o.rec_h18 + $96, rec_h19 = o.rec_h19 + $97,
+    rec_h20 = o.rec_h20 + $98, rec_h21 = o.rec_h21 + $99, rec_h22 = o.rec_h22 + $100, rec_h23 = o.rec_h23 + $101,
 
-    age_h00 = o.age_h00 + $100, age_h01 = o.age_h01 + $101, age_h02 = o.age_h02 + $102, age_h03 = o.age_h03 + $103,
-    age_h04 = o.age_h04 + $104, age_h05 = o.age_h05 + $105, age_h06 = o.age_h06 + $106, age_h07 = o.age_h07 + $107,
-    age_h08 = o.age_h08 + $108, age_h09 = o.age_h09 + $109, age_h10 = o.age_h10 + $110, age_h11 = o.age_h11 + $111,
-    age_h12 = o.age_h12 + $112, age_h13 = o.age_h13 + $113, age_h14 = o.age_h14 + $114, age_h15 = o.age_h15 + $115,
-    age_h16 = o.age_h16 + $116, age_h17 = o.age_h17 + $117, age_h18 = o.age_h18 + $118, age_h19 = o.age_h19 + $119,
-    age_h20 = o.age_h20 + $120, age_h21 = o.age_h21 + $121, age_h22 = o.age_h22 + $122, age_h23 = o.age_h23 + $123, 
+    age_h00 = o.age_h00 + $102, age_h01 = o.age_h01 + $103, age_h02 = o.age_h02 + $104, age_h03 = o.age_h03 + $105,
+    age_h04 = o.age_h04 + $106, age_h05 = o.age_h05 + $107, age_h06 = o.age_h06 + $108, age_h07 = o.age_h07 + $109,
+    age_h08 = o.age_h08 + $110, age_h09 = o.age_h09 + $111, age_h10 = o.age_h10 + $112, age_h11 = o.age_h11 + $113,
+    age_h12 = o.age_h12 + $114, age_h13 = o.age_h13 + $115, age_h14 = o.age_h14 + $116, age_h15 = o.age_h15 + $117,
+    age_h16 = o.age_h16 + $118, age_h17 = o.age_h17 + $119, age_h18 = o.age_h18 + $120, age_h19 = o.age_h19 + $121,
+    age_h20 = o.age_h20 + $122, age_h21 = o.age_h21 + $123, age_h22 = o.age_h22 + $124, age_h23 = o.age_h23 + $125, 
 
-    fwd_h00 = o.fwd_h00 + $124, fwd_h01 = o.fwd_h01 + $125, fwd_h02 = o.fwd_h02 + $126, fwd_h03 = o.fwd_h03 + $127,
-    fwd_h04 = o.fwd_h04 + $128, fwd_h05 = o.fwd_h05 + $129, fwd_h06 = o.fwd_h06 + $130, fwd_h07 = o.fwd_h07 + $131,
-    fwd_h08 = o.fwd_h08 + $132, fwd_h09 = o.fwd_h09 + $133, fwd_h10 = o.fwd_h10 + $134, fwd_h11 = o.fwd_h11 + $135,
-    fwd_h12 = o.fwd_h12 + $136, fwd_h13 = o.fwd_h13 + $137, fwd_h14 = o.fwd_h14 + $138, fwd_h15 = o.fwd_h15 + $139,
-    fwd_h16 = o.fwd_h16 + $140, fwd_h17 = o.fwd_h17 + $141, fwd_h18 = o.fwd_h18 + $142, fwd_h19 = o.fwd_h19 + $143,
-    fwd_h20 = o.fwd_h20 + $144, fwd_h21 = o.fwd_h21 + $145, fwd_h22 = o.fwd_h22 + $146, fwd_h23 = o.fwd_h23 + $147, 
+    fwd_h00 = o.fwd_h00 + $126, fwd_h01 = o.fwd_h01 + $127, fwd_h02 = o.fwd_h02 + $128, fwd_h03 = o.fwd_h03 + $129,
+    fwd_h04 = o.fwd_h04 + $130, fwd_h05 = o.fwd_h05 + $131, fwd_h06 = o.fwd_h06 + $132, fwd_h07 = o.fwd_h07 + $133,
+    fwd_h08 = o.fwd_h08 + $134, fwd_h09 = o.fwd_h09 + $135, fwd_h10 = o.fwd_h10 + $136, fwd_h11 = o.fwd_h11 + $137,
+    fwd_h12 = o.fwd_h12 + $138, fwd_h13 = o.fwd_h13 + $139, fwd_h14 = o.fwd_h14 + $140, fwd_h15 = o.fwd_h15 + $141,
+    fwd_h16 = o.fwd_h16 + $142, fwd_h17 = o.fwd_h17 + $143, fwd_h18 = o.fwd_h18 + $144, fwd_h19 = o.fwd_h19 + $145,
+    fwd_h20 = o.fwd_h20 + $146, fwd_h21 = o.fwd_h21 + $147, fwd_h22 = o.fwd_h22 + $148, fwd_h23 = o.fwd_h23 + $149,
 
-    total_lost_messages = o.total_lost_messages + $148,
-    total_timeout_messages = o.total_timeout_messages + $149
+    total_lost_messages = o.total_lost_messages + $150,
+    total_timeout_messages = o.total_timeout_messages + $151
 
 returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples, id
 `
@@ -281,6 +281,7 @@ returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples,
 			f[0],  f[1],  f[2],  f[3],  f[4],  f[5],  f[6],  f[7],  f[8],  f[9],  f[10], f[11],
 			f[12], f[13], f[14], f[15], f[16], f[17], f[18], f[19], f[20], f[21], f[22], f[23],
 			0,
+			stats.NbrLost, stats.NbrTimeout,
 			r[0],  r[1],  r[2],  r[3],  r[4],  r[5],  r[6],  r[7],  r[8],  r[9],  r[10], r[11],
 			r[12], r[13], r[14], r[15], r[16], r[17], r[18], r[19], r[20], r[21], r[22], r[23],
 			a[0],  a[1],  a[2],  a[3],  a[4],  a[5],  a[6],  a[7],  a[8],  a[9],  a[10], a[11],

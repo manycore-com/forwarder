@@ -54,5 +54,10 @@ func TestWriteStatsToDbV2(t *testing.T) {
 	forwarderStats.AddForwardedAtH(1)
 	forwarderStats.AddErrorMessage(1,"klaskatt2")
 	forwarderStats.AddExample(1, "some example")
+	forwarderStats.AddLost(1)
+	forwarderStats.AddLost(1)
+	forwarderStats.AddLost(1)
+	forwarderStats.AddTimeout(1)
+	forwarderStats.AddTimeout(1)
 	WriteStatsToDb()
 }
