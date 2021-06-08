@@ -280,9 +280,9 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
-	nbrForwarded, nbrLost := forwarderDb.WriteStatsToDb()
+	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward.Forward(%s): done. # forward: %d, # drop: %d,  Memstats: %s\n", devprod, nbrForwarded, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s): done. # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

@@ -190,12 +190,12 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 	}
 }
 
-func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, failureWaitGroup *sync.WaitGroup) {
+func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, waitGroup *sync.WaitGroup) {
 	for i:=0; i<nbrPublishWorkers; i++ {
 		*pubsubFailureChan <- nil
 	}
 
-	failureWaitGroup.Wait()
+	waitGroup.Wait()
 }
 
 func cleanup() {
@@ -242,9 +242,9 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
-	_, nbrLost := forwarderDb.WriteStatsToDb()
+	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout.Fanout(%s): done. # drop: %d,  Memstats: %s\n", devprod, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s): done. # received: %d, # drop: %d,  Memstats: %s\n", devprod, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

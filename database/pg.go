@@ -323,14 +323,18 @@ returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples,
 	return id, hourNow, lastHourWithErrors, lastHourWithExamples, err
 }
 
-func WriteStatsToDb() (int, int) {
+func WriteStatsToDb() (int, int, int, int) {
+	var nbrReceived int = 0
 	var nbrForwarded int = 0
 	var nbrLost int = 0
+	var nbrTimeout int = 0
 	for companyId, s := range forwarderStats.StatsMap {
 		for i:=0; i<24; i++ {
+			nbrReceived += s.ReceivedAtH[i]
 			nbrForwarded += s.ForwardedAtH[i]
 		}
 		nbrLost += s.NbrLost
+		nbrTimeout += s.NbrTimeout
 
 		id, hourNow, _, lastHourWithExamples, err := UpdateUsage(companyId, s)
 		if nil == err {
@@ -347,7 +351,7 @@ func WriteStatsToDb() (int, int) {
 
 	forwarderStats.CleanupV2()
 
-	return nbrForwarded, nbrLost
+	return nbrReceived, nbrForwarded, nbrLost, nbrTimeout
 }
 
 func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId int, hourNow int) error {
