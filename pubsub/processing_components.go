@@ -66,20 +66,26 @@ func receiveEventsFromPubsubPoller(
 	err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
 		mu.Lock()
 		defer mu.Unlock()
-		received++
+
+		if ! runTick {
+			fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() we are canceled.\n")
+			defer msg.Nack()
+			return
+		}
 
 		var elem PubSubElement
 		err := json.Unmarshal(msg.Data, &elem)
 		if nil == err {
 			if AgeInSecMessage(msg) < minAgeSecF64 {
-				cancel()
-				msg.Nack()
 				runTick = false
+				msg.Nack()
+				cancel()
 			} else {
-				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() age:%v, Message: %#v immediate Ack\n", AgeInSecMessage(msg), elem)
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() Ack age:%v, Message: %#v\n", AgeInSecMessage(msg), elem)
 				msg.Ack()
-				*pubsubForwardChan <- &elem
+				received++
 				lastAtMs = time.Now().UnixNano() / 1000000
+				*pubsubForwardChan <- &elem
 			}
 		} else {
 			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)
