@@ -37,7 +37,7 @@ var projectId = ""
 var outQueueTopicId = ""
 var simpleHashPassword = ""
 var devprod = ""  // Optional: We use dev for development, devprod for live test, prod for live
-var version = "1"
+var version = "2"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")

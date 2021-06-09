@@ -24,7 +24,7 @@ var maxNbrMessagesPolled = 64
 var atQueue = -1
 var maxPubsubQueueIdleMs = 250
 var maxMessageAge = 3600 * 12
-var version = "1"
+var version = "2"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")

@@ -28,7 +28,7 @@ var nbrAckWorkers = 32
 var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
 var maxPubsubQueueIdleMs = 250
-var version = "1"
+var version = "2"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")

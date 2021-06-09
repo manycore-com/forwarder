@@ -68,9 +68,11 @@ func receiveEventsFromPubsubPoller(
 	minAgeSecF64 := float64(minAgeSec)
 	err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
 		mu.Lock()
-		defer mu.Unlock()
+		var runTickCopy = runTick
+		var receivedCopy = received
+		mu.Unlock()
 
-		if ! runTick {
+		if ! runTickCopy {
 			fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() we are canceled.\n")
 			defer msg.Nack()
 			return
@@ -80,23 +82,35 @@ func receiveEventsFromPubsubPoller(
 		err := json.Unmarshal(msg.Data, &elem)
 		if nil == err {
 			if AgeInSecMessage(msg) < minAgeSecF64 {
+				mu.Lock()
 				runTick = false
+				mu.Unlock()
+
 				msg.Nack()
 				cancel()
 			} else {
 				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() Ack age:%v, Message: %#v\n", AgeInSecMessage(msg), elem)
 				msg.Ack()
+
+				mu.Lock()
 				received++
+				receivedCopy = received
 				lastAtMs = time.Now().UnixNano() / 1000000
+				mu.Unlock()
+
 				*pubsubForwardChan <- &elem
 			}
 		} else {
 			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)
+			msg.Ack()  // Valid or not, Ack to get rid of it
 		}
 
-		if (received + nbrReceivedBefore) >= maxPolled {
+		if (receivedCopy + nbrReceivedBefore) >= maxPolled {
 			cancel()
+
+			mu.Lock()
 			runTick = false
+			mu.Unlock()
 		}
 	})
 

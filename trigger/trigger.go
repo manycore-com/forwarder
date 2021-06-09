@@ -18,7 +18,7 @@ var triggerSubscriptionId = ""
 var projectId = ""
 var devprod = ""
 var nbrPublishWorkers = 32
-var version = "1"
+var version = "2"
 func env() error {
 	var err error
 
