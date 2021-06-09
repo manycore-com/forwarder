@@ -24,6 +24,7 @@ var maxNbrMessagesPolled = 64
 var atQueue = -1
 var maxPubsubQueueIdleMs = 250
 var maxMessageAge = 3600 * 12
+var version = "1"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -282,7 +283,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward.Forward(%s): done. # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s): done. v.%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, version, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

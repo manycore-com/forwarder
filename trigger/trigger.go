@@ -18,6 +18,7 @@ var triggerSubscriptionId = ""
 var projectId = ""
 var devprod = ""
 var nbrPublishWorkers = 32
+var version = "1"
 func env() error {
 	var err error
 
@@ -161,7 +162,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwarder.trigger.Trigger(%s) done! msg on queue: %v, trig msg already:%v, new trigger msg:%v, Memstats: %s\n", devprod, nbrItemsInt64, alreadyOnTriggerQueue, iterations, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.trigger.Trigger(%s) done! v.%s msg on queue: %v, trig msg already:%v, new trigger msg:%v, Memstats: %s\n", devprod, version, nbrItemsInt64, alreadyOnTriggerQueue, iterations, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

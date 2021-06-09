@@ -28,6 +28,7 @@ var nbrAckWorkers = 32
 var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
 var maxPubsubQueueIdleMs = 250
+var version = "1"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -244,7 +245,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout.Fanout(%s): done. # received: %d, # drop: %d,  Memstats: %s\n", devprod, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s): done. v.%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, version, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

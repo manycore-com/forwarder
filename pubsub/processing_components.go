@@ -56,6 +56,9 @@ func receiveEventsFromPubsubPoller(
 			var rightNow = time.Now().UnixNano() / 1000000
 			if (int64(maxPubsubQueueIdleMs) + copyOfLastAtMs) < rightNow {
 				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller.func() Killing Receive due to %dms inactivity.\n", maxPubsubQueueIdleMs)
+				mu.Lock()
+				runTick = false
+				mu.Unlock()
 				cancel()
 				return
 			}

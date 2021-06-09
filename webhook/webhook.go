@@ -37,6 +37,7 @@ var projectId = ""
 var outQueueTopicId = ""
 var simpleHashPassword = ""
 var devprod = ""  // Optional: We use dev for development, devprod for live test, prod for live
+var version = "1"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")
@@ -245,7 +246,7 @@ func F(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var memUsage = forwarderStats.GetMemUsageStr()
-	fmt.Printf("forwarder.webhook.F(%s) ok. CompanyId:%d, Memstats: %s\n", devprod, companyId, memUsage)
+	fmt.Printf("forwarder.webhook.F(%s) ok. v.%s CompanyId:%d, Memstats: %s\n", devprod, version, companyId, memUsage)
 
 	fmt.Fprintf(w, "ok (%s)", memUsage)
 }
