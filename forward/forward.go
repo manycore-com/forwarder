@@ -3,6 +3,7 @@ package forward
 import (
 	"context"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
@@ -24,7 +25,7 @@ var maxNbrMessagesPolled = 64
 var atQueue = -1
 var maxPubsubQueueIdleMs = 250
 var maxMessageAge = 3600 * 12
-var version = "2"
+var maxOutstandingMessages = 32
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -117,6 +118,21 @@ func env() error {
 
 		if 10000 < maxPubsubQueueIdleMs {
 			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be max 10000: %v\n", maxPubsubQueueIdleMs)
+		}
+	}
+
+	if "" != os.Getenv("MAX_OUTSTANDING_MESSAGES") {
+		maxOutstandingMessages, err := strconv.Atoi(os.Getenv("MAX_OUTSTANDING_MESSAGES"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_OUTSTANDING_MESSAGES: %v", err)
+		}
+
+		if 1 > maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be at least 1: %v\n", maxOutstandingMessages)
+		}
+
+		if 100 < maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be max 100: %v\n", maxOutstandingMessages)
 		}
 	}
 
@@ -271,7 +287,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, nbrAckWorkers, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs)
+	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", devprod, err)
@@ -283,7 +299,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward.Forward(%s): done. v.%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, version, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s): done. v.%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

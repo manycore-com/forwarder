@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
@@ -28,7 +29,7 @@ var nbrAckWorkers = 32
 var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
 var maxPubsubQueueIdleMs = 250
-var version = "2"
+var maxOutstandingMessages = 32
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -105,6 +106,21 @@ func env() error {
 
 		if 10000 < maxPubsubQueueIdleMs {
 			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be max 10000: %v\n", maxPubsubQueueIdleMs)
+		}
+	}
+
+	if "" != os.Getenv("MAX_OUTSTANDING_MESSAGES") {
+		maxOutstandingMessages, err := strconv.Atoi(os.Getenv("MAX_OUTSTANDING_MESSAGES"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_OUTSTANDING_MESSAGES: %v", err)
+		}
+
+		if 1 > maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be at least 1: %v\n", maxOutstandingMessages)
+		}
+
+		if 100 < maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be max 100: %v\n", maxOutstandingMessages)
 		}
 	}
 
@@ -235,7 +251,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	asyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, nbrAckWorkers, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs)
+	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.fanout.Fanout(%s) failed to receive events: %v\n", devprod, err)
@@ -245,7 +261,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout.Fanout(%s): done. v.%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, version, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s): done. v.%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

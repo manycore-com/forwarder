@@ -124,10 +124,10 @@ func ReceiveEventsFromPubsub(
 	projectId string,
 	subscriptionId string,
 	minAgeSecs int,
-	nbrAckWorker int,
 	maxPollPerRun int,
 	pubsubForwardChan *chan *PubSubElement,
-    maxPubsubQueueIdleMs int) (int, error) {
+    maxPubsubQueueIdleMs int,
+	maxOutstandingMessages int) (int, error) {
 
 	ctx := context.Background()
 	client, clientErr := pubsub.NewClient(ctx, projectId)
@@ -140,7 +140,7 @@ func ReceiveEventsFromPubsub(
 
 	subscription := client.Subscription(subscriptionId)
 	subscription.ReceiveSettings.Synchronous = true
-	subscription.ReceiveSettings.MaxOutstandingMessages = maxPollPerRun  // There are less thoughts about this than you think
+	subscription.ReceiveSettings.MaxOutstandingMessages = maxOutstandingMessages
 	subscription.ReceiveSettings.MaxOutstandingBytes = 20000000
 
 	var nbrReceivedTotal = 0

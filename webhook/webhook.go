@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io/ioutil"
@@ -37,7 +38,6 @@ var projectId = ""
 var outQueueTopicId = ""
 var simpleHashPassword = ""
 var devprod = ""  // Optional: We use dev for development, devprod for live test, prod for live
-var version = "2"
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")
@@ -246,7 +246,7 @@ func F(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var memUsage = forwarderStats.GetMemUsageStr()
-	fmt.Printf("forwarder.webhook.F(%s) ok. v.%s CompanyId:%d, Memstats: %s\n", devprod, version, companyId, memUsage)
+	fmt.Printf("forwarder.webhook.F(%s) ok. v.%s CompanyId:%d, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, companyId, memUsage)
 
 	fmt.Fprintf(w, "ok (%s)", memUsage)
 }

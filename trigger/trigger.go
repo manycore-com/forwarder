@@ -3,6 +3,7 @@ package trigger
 import (
 	"context"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"math"
@@ -18,7 +19,6 @@ var triggerSubscriptionId = ""
 var projectId = ""
 var devprod = ""
 var nbrPublishWorkers = 32
-var version = "2"
 func env() error {
 	var err error
 
@@ -162,7 +162,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwarder.trigger.Trigger(%s) done! v.%s msg on queue: %v, trig msg already:%v, new trigger msg:%v, Memstats: %s\n", devprod, version, nbrItemsInt64, alreadyOnTriggerQueue, iterations, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.trigger.Trigger(%s) done! v.%s msg on queue: %v, trig msg already:%v, new trigger msg:%v, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, nbrItemsInt64, alreadyOnTriggerQueue, iterations, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
