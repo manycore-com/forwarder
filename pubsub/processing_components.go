@@ -23,13 +23,30 @@ type PubSubElement struct {
 // and increase it if there are actual messages.
 func receiveEventsFromPubsubPoller(
 	devprod string,
-	subscription *pubsub.Subscription,
+	projectId string,
+	subscriptionId string,
 	pubsubForwardChan *chan *PubSubElement,
 	timeoutSeconds int,
 	minAgeSec int,
 	nbrReceivedBefore int,
 	maxPolled int,
-	maxPubsubQueueIdleMs int) (int, error) {
+	maxPubsubQueueIdleMs int,
+	maxOutstandingMessages int) (int, error) {
+
+
+	ctx := context.Background()
+	client, clientErr := pubsub.NewClient(ctx, projectId)
+	if clientErr != nil {
+		return 0, clientErr
+	}
+	if nil != client {
+		defer client.Close()
+	}
+
+	subscription := client.Subscription(subscriptionId)
+	subscription.ReceiveSettings.Synchronous = true
+	subscription.ReceiveSettings.MaxOutstandingMessages = maxOutstandingMessages
+	subscription.ReceiveSettings.MaxOutstandingBytes = 20000000
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds) * time.Second)
 	defer cancel()
@@ -129,20 +146,6 @@ func ReceiveEventsFromPubsub(
     maxPubsubQueueIdleMs int,
 	maxOutstandingMessages int) (int, error) {
 
-	ctx := context.Background()
-	client, clientErr := pubsub.NewClient(ctx, projectId)
-	if clientErr != nil {
-		return 0, clientErr
-	}
-	if nil != client {
-		defer client.Close()
-	}
-
-	subscription := client.Subscription(subscriptionId)
-	subscription.ReceiveSettings.Synchronous = true
-	subscription.ReceiveSettings.MaxOutstandingMessages = maxOutstandingMessages
-	subscription.ReceiveSettings.MaxOutstandingBytes = 20000000
-
 	var nbrReceivedTotal = 0
 	var err error = nil
 	var pollMax = 1000
@@ -166,17 +169,26 @@ func ReceiveEventsFromPubsub(
 	var nbrReceived int = 0
 
 	var timeout int = 30
-	nbrReceived, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs)
+	nbrReceived, err = receiveEventsFromPubsubPoller(devprod, projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
 
 	nbrReceivedTotal += nbrReceived
 
 	if pollMax > 5 {
 		if (pollMax * 2 / 3 ) > nbrReceivedTotal {
 
+			ctx := context.Background()
+			client, clientErr := pubsub.NewClient(ctx, projectId)
+			if clientErr != nil {
+				return 0, clientErr
+			}
+			if nil != client {
+				defer client.Close()
+			}
+
 			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): 2nd run: %d > %d\n", devprod, (pollMax * 2 / 3 ), nbrReceivedTotal)
 
 			timeout = 15
-			nbrReceived, err = receiveEventsFromPubsubPoller(devprod, subscription, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs)
+			nbrReceived, err = receiveEventsFromPubsubPoller(devprod, projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
 			nbrReceivedTotal += nbrReceived
 		}
 	}

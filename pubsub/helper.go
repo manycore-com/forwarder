@@ -20,6 +20,7 @@ func AgeInSecMessage(msg *pubsub.Message) float64 {
 	return time.Now().UTC().Sub(msg.PublishTime).Seconds()
 }
 
+// CheckNbrItemsPubsub Note: The number shows by delay 0..60s
 func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) {
 	ctx := context.Background()
 
