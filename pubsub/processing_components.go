@@ -173,6 +173,7 @@ func ReceiveEventsFromPubsub(
 
 	nbrReceivedTotal += nbrReceived
 
+	/*
 	if pollMax > 5 {
 		if (pollMax * 2 / 3 ) > nbrReceivedTotal {
 
@@ -192,6 +193,7 @@ func ReceiveEventsFromPubsub(
 			nbrReceivedTotal += nbrReceived
 		}
 	}
+	 */
 
 	fmt.Printf("receiveEventsFromPubsub(%s): done. NbrReceived=%d, err=%v\n", devprod, nbrReceivedTotal, err)
 

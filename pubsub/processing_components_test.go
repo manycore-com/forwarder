@@ -48,8 +48,8 @@ func TestMisc(t *testing.T) {
 
 }
 
-/*
 
+/*
 // This was to test a duplicate bug. We might need it again.
 
 const okPayload = `[
@@ -176,7 +176,7 @@ func TestHej(t *testing.T) {
 func TestToConsumeTheLot(t *testing.T) {
 
 	var BATCHSIZE = 64
-	var SUBSCRIPTION = "TESTING"
+	var SUBSCRIPTION = "TESTING2"
 	maxNbrMessagesPolled := BATCHSIZE
 
 	forwarderTest.SetEnvVars()
@@ -226,5 +226,7 @@ func TestToConsumeTheLot(t *testing.T) {
 	forwardWaitGroup.Wait()
 }
 
+ */
 
-*/
+
+

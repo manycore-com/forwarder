@@ -1,3 +1,3 @@
 package common
 
-var PackageVersion = "5"
+var PackageVersion = "6"
