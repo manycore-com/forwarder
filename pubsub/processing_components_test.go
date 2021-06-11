@@ -147,8 +147,13 @@ func TestPopulateTesting4(t *testing.T) {
 }
 
 
+var mutexForConsumer sync.Mutex
+var dupeTest = make(map[int]bool)
+
 
 func asyncConsumer(nbrConsumer int, forwardWaitGroup *sync.WaitGroup, pubsubForwardChan *chan *PubSubElement) {
+	dupeTest = make(map[int]bool)
+
 	for i := 0; i < nbrConsumer; i++ {
 		forwardWaitGroup.Add(1)
 
@@ -162,6 +167,14 @@ func asyncConsumer(nbrConsumer int, forwardWaitGroup *sync.WaitGroup, pubsubForw
 					break
 				}
 
+				mutexForConsumer.Lock()
+				isDupe := dupeTest[val.CompanyID]
+				dupeTest[val.CompanyID] = true
+				mutexForConsumer.Unlock()
+
+				if isDupe {
+					fmt.Printf("!!!!!!!!!! Dupe detected! %d\n", val.CompanyID)
+				}
 			}
 
 		} (i, forwardWaitGroup)
@@ -225,8 +238,8 @@ func TestToConsumeTheLot(t *testing.T) {
 
 	forwardWaitGroup.Wait()
 }
+*/
 
- */
 
 
 

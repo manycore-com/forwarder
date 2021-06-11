@@ -47,17 +47,16 @@ func receiveEventsFromPubsubPoller(
 	subscription.ReceiveSettings.Synchronous = true
 	subscription.ReceiveSettings.MaxOutstandingMessages = maxOutstandingMessages
 	subscription.ReceiveSettings.MaxOutstandingBytes = 20000000
+	//subscription.ReceiveSettings.MaxExtension = time.Second * 60
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds) * time.Second)
 	defer cancel()
 
 	var mu sync.Mutex
-	received := 0
-
+	var received = 0
 	var runTick = true
 	var startMs = time.Now().UnixNano() / 1000000
-	// 3000ms was too low for local machine. 8000ms was enough. It's reset after first received message.
-	var lastAtMs = startMs + 5000
+	var lastAtMs = startMs + 5000 // 3000ms was too low for local machine. 8000ms was enough. It's reset after first received message.
 	go func() {
 		for {
 			time.Sleep(time.Millisecond * 100)
@@ -131,6 +130,9 @@ func receiveEventsFromPubsubPoller(
 		}
 	})
 
+	//fmt.Printf("zzz some 2s since it seemed to rpoboke the bug\n")
+	//time.Sleep(time.Second * 2)
+
 	return received, err
 }
 
@@ -173,7 +175,6 @@ func ReceiveEventsFromPubsub(
 
 	nbrReceivedTotal += nbrReceived
 
-	/*
 	if pollMax > 5 {
 		if (pollMax * 2 / 3 ) > nbrReceivedTotal {
 
@@ -193,7 +194,6 @@ func ReceiveEventsFromPubsub(
 			nbrReceivedTotal += nbrReceived
 		}
 	}
-	 */
 
 	fmt.Printf("receiveEventsFromPubsub(%s): done. NbrReceived=%d, err=%v\n", devprod, nbrReceivedTotal, err)
 
