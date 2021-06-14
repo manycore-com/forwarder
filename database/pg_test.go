@@ -40,7 +40,6 @@ func TestGetUserData(t *testing.T) {
 	fmt.Printf("User data: %#v\n", *ci)
 }
 
-
 func TestCheckDb(t *testing.T) {
 	forwarderTest.SetEnvVars()
 

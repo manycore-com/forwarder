@@ -199,6 +199,8 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
 						forwarderStats.AddLost(elem.CompanyID)
 						continue
+					} else {
+						forwarderStats.AddEnterQueueAtH(elem.CompanyID)
 					}
 				}
 			}

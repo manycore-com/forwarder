@@ -8,7 +8,8 @@ import (
 )
 
 type Stats struct {
-	ReceivedAtH    [24]int
+	ReceivedAtH    [24]int  // One per item put on responder
+	EnterQueueAtH  [24]int  // One per message we put on forward 1. >= ReceivedAtH
 	AgeWhenForward [24]int
 	ForwardedAtH   [24]int
 	Example        string
@@ -56,6 +57,16 @@ func AddReceivedAtH(companyId int) int {
 	theElem := touchElem(companyId)
 	theElem.ReceivedAtH[hour] += 1
 	return theElem.ReceivedAtH[hour]
+}
+
+func AddEnterQueueAtH(companyId int) int {
+	statsMutex.Lock()
+	defer statsMutex.Unlock()
+
+	hour := time.Now().UTC().Hour()
+	theElem := touchElem(companyId)
+	theElem.EnterQueueAtH[hour] += 1
+	return theElem.EnterQueueAtH[hour]
 }
 
 func AddAgeWhenForward(companyId int, ts int64) int {

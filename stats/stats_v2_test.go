@@ -16,7 +16,15 @@ func TestAddReceivedAtH(t *testing.T) {
 		time.Sleep(time.Second * 1)
 	}
 
+	AddEnterQueueAtH(1235)
+	AddEnterQueueAtH(1235)
+	AddEnterQueueAtH(1235)
+
 	AddReceivedAtH(123)
 	AddReceivedAtH(1234)
+
 	assert.Equal(t, 2, AddReceivedAtH(123))
+	assert.Equal(t, 4, AddEnterQueueAtH(1235))
+
+	CleanupV2()
 }
