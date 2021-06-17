@@ -82,6 +82,31 @@ func CheckDb() error {
 	return nil
 }
 
+func IsPaused(hashId int) bool {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		fmt.Printf("forwarder.database.IsPaused() Failed to get connection: %v\n", err)
+		return false
+	}
+
+	var nbrRows int
+	q := `
+    select count(*) as nbrRows 
+    from webhook_pause 
+    where hash_id = $1
+    `
+	err = dbconn.QueryRow(context.Background(), q, hashId).Scan(&nbrRows)
+	if nil != err {
+		fmt.Printf("forwarder.database.IsPaused() Failed to get connection: %v\n", err)
+		return false
+	}
+
+	return 0 != nbrRows
+}
+
 func GetUserData(companyId int) (*CompanyInfo, error) {
 
 	// FIXME not necessarily ideal. A db read blocks a cached read.
@@ -157,14 +182,12 @@ func UpdateUsage(companyId int, stats *forwarderStats.Stats) (int, int, int, int
 
 	dbconn, err := GetDbConnection()
 	if nil != err {
-		fmt.Printf("asd90210 %v\n", err)
 		return -1, -1, -1, -1, err
 	}
 
-	loc, _ := time.LoadLocation("UTC")
-	t := time.Now().In(loc)
+	t := time.Now().UTC()
 	hourNow := t.Hour()
-	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 
 	r := stats.ReceivedAtH
 	a := stats.AgeWhenForward
@@ -246,7 +269,9 @@ INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
     last_hour_with_errors,
     last_hour_with_examples,
     total_lost_messages,
-    total_timeout_messages
+    total_timeout_messages,
+    qus_h00, qus_h01, qus_h02, qus_h03, qus_h04, qus_h05, qus_h06, qus_h07, qus_h08, qus_h09, qus_h10, qus_h11,
+    qus_h12, qus_h13, qus_h14, qus_h15, qus_h16, qus_h17, qus_h18, qus_h19, qus_h20, qus_h21, qus_h22, qus_h23
 ) values (
     $1,
     $2,
@@ -258,7 +283,8 @@ INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
     -1,
     -1,
     $100,
-    $101
+    $101,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 )
 ON CONFLICT (company_id, created_at) DO UPDATE 
 SET 
@@ -461,6 +487,86 @@ func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId in
 	return err
 }
 
+func DeleteAPauseRow(hashId int) error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if err != nil {
+		return err
+	}
+
+	q := `
+    delete from webhook_pause where hash_id = $1
+    `
+
+	_, err = dbconn.Exec(context.Background(), q, hashId)
+	if nil != err {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteAllPauseRows() error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if err != nil {
+		return err
+	}
+
+	q := `
+    delete from webhook_pause
+    `
+
+	_, err = dbconn.Exec(context.Background(), q)
+	if nil != err {
+		return err
+	}
+
+	return nil
+}
+
+func CreatePauseRows(nbrHash int) error {
+
+	// DeleteAllPauseRows locks the db mutex too.
+	err := DeleteAllPauseRows()
+	if nil != err {
+		return err
+	}
+
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if err != nil {
+		return err
+	}
+
+	u := time.Now().UTC()
+	createdAt := time.Date(u.Year(), u.Month(), u.Day(), u.Hour(), 0, 0, 0, time.UTC)
+
+	for i:=0; i<nbrHash; i++ {
+		q := `
+        insert into webhook_pause (
+            hash_id,
+            created_at
+        ) values (
+            $1,
+            $2
+        )
+        `
+		_, err = dbconn.Exec(context.Background(), q, i, createdAt)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func Cleanup() {
 	if globalDb != nil {
 		err := globalDb.Close(context.Background())
@@ -470,4 +576,203 @@ func Cleanup() {
 		globalDb = nil
 	}
 	companyInfoMap = make(map[int]*CompanyInfo)
+}
+
+func WriteQueueCheckpoint(companyId int, queueSize int) error {
+
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return err
+	}
+
+
+	t := time.Now().UTC()
+	created_at := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+
+	var rec int
+	var age int
+	var fwd int
+	var ent int
+	var total_lost_messages int
+	var total_timeout_messages int
+	q := `
+    select
+        rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
+	    age_h00 + age_h01 + age_h02 + age_h03 + age_h04 + age_h05 + age_h06 + age_h07 + age_h08 + age_h09 + age_h10 + age_h11 + age_h12 + age_h13 + age_h14 + age_h15 + age_h16 + age_h17 + age_h18 + age_h19 + age_h20 + age_h21 + age_h22 + age_h23 as sum_age,
+        fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
+        ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
+        total_lost_messages as total_lost_messages,
+        total_timeout_messages as total_timeout_messages
+    from 
+        webhook_forwarder_daily_forward_stats_v2
+    where
+        company_id = $1 AND
+        created_at = $2
+    `
+	err = dbconn.QueryRow(context.Background(), q, companyId, created_at).Scan(&rec, &age, &fwd, &ent, &total_lost_messages, &total_timeout_messages)
+	if err != nil {
+		// TODO what's the right way to check if no rows OR query failed?
+		if ! strings.Contains(err.Error(), "no rows in ") {
+			return err
+		}
+
+		fmt.Printf("forwarder.database.WriteQueueCheckpoint(): no stats row, assuming zeros\n")
+	}
+
+	q = `
+    insert into webhook_queue_size_checkpoint as o (
+        created_at,
+        rec,
+        ent,
+        age,
+        fwd,
+        total_lost_messages,
+        total_timeout_messages,
+        counted_items_on_fwd_queues,
+        company_id
+    ) values (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9
+    )
+    ON CONFLICT (company_id, created_at) DO UPDATE 
+    set
+        created_at = $10,
+        rec = $11,
+        ent = $12,
+        age = $13,
+        fwd = $14,
+        total_lost_messages = $15,
+        total_timeout_messages = $16,
+        counted_items_on_fwd_queues = $17,
+        company_id = $18
+    `
+	_, err = dbconn.Exec(context.Background(), q,
+		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId,
+		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CalculateQueueSize(companyId int) (int, error) {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return -1, err
+	}
+
+	var created_at time.Time
+	var rec int
+	var ent int
+	var age int
+	var fwd int
+	var total_lost_messages int
+	var total_timeout_messages int
+	var counted_items_on_fwd_queues int
+	// The 7 days is just because I wanted some kind of limit
+	q := `
+    select
+        created_at,
+        0 - rec,
+        0 - ent,
+        0 - age,
+        0 - fwd,
+        0 - total_lost_messages,
+        0 - total_timeout_messages,
+        counted_items_on_fwd_queues
+    from
+        webhook_queue_size_checkpoint
+    where
+        company_id = $1 and
+        created_at > now() - interval '7 days'
+    order by
+        created_at desc
+    limit 1
+    `
+	err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&created_at, &rec, &ent, &age, &fwd, &total_lost_messages, &total_timeout_messages, &counted_items_on_fwd_queues)
+	if err != nil {
+		// TODO what's the right way to check if no rows OR query failed?
+		if ! strings.Contains(err.Error(), "no rows in ") {
+			return 0, err
+		}
+
+		fmt.Printf("forwarder.database.CalculateQueueSize(): no checpoint row, assuming zeros\n")
+		return 0, nil
+	}
+
+	var day_rec int
+	var day_age int
+	var day_fwd int
+	var day_ent int
+	var day_total_lost_messages int
+	var day_total_timeout_messages int
+	q = `
+    select
+        rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
+	    age_h00 + age_h01 + age_h02 + age_h03 + age_h04 + age_h05 + age_h06 + age_h07 + age_h08 + age_h09 + age_h10 + age_h11 + age_h12 + age_h13 + age_h14 + age_h15 + age_h16 + age_h17 + age_h18 + age_h19 + age_h20 + age_h21 + age_h22 + age_h23 as sum_age,
+        fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
+        ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
+        total_lost_messages as total_lost_messages,
+        total_timeout_messages as total_timeout_messages
+    from 
+        webhook_forwarder_daily_forward_stats_v2
+    where
+        company_id = $1 AND
+        created_at >= $2
+    `
+	rows, err := dbconn.Query(context.Background(), q, companyId, created_at)
+	if err != nil {
+		return -1, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&day_rec, &day_age, &day_fwd, &day_ent, &day_total_lost_messages, &day_total_timeout_messages)
+		if nil != err {
+			return -1, err
+		}
+
+		rec += day_rec
+		ent += day_ent
+		age += day_age
+		fwd += day_fwd
+		total_lost_messages += day_total_lost_messages
+		total_timeout_messages += day_total_timeout_messages
+	}
+
+	result := counted_items_on_fwd_queues + ent - fwd - total_lost_messages - total_timeout_messages
+	// fmt.Printf("a %v + %v - %v - %v - %v = %v \n", counted_items_on_fwd_queues, ent, fwd, total_lost_messages, total_timeout_messages, result)
+
+	t := time.Now().UTC()
+	hourNow := t.Hour()
+	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+
+	q = `
+    update webhook_forwarder_daily_forward_stats_v2
+    set
+        ` + fmt.Sprintf("qus_h%02d", hourNow) + ` = $1
+    where
+        company_id = $2 AND
+        created_at = $3
+    `
+	_, err = dbconn.Exec(context.Background(), q, result, companyId, day)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
 }

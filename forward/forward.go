@@ -259,10 +259,10 @@ func cleanup() {
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
-func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
+func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.webhook.Forward() webhook responder is mis configured: %v", err)
+		return fmt.Errorf("forwarder.webhook.Forward(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
 	}
 
 	defer cleanup()
@@ -270,8 +270,13 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.forward.Forward(%s): Db check failed: %v\n", devprod, err)
+		fmt.Printf("forwarder.forward.Forward(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
 		return err
+	}
+
+	if forwarderDb.IsPaused(hashId) {
+		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) We're in PAUSE\n", devprod, hashId)
+		return nil
 	}
 
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
@@ -290,7 +295,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", devprod, err)
+		fmt.Printf("forwarder.forward.Forward(%s, h%d): failed to receive events: %v\n", devprod, hashId, err)
 	}
 
 	takeDownAsyncForward(&pubsubForwardChan, &forwardWaitGroup)
@@ -299,7 +304,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward.Forward(%s): done. v.%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward.Forward(%s, h%d): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

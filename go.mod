@@ -14,6 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/stretchr/testify v1.6.1
+	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	google.golang.org/api v0.47.0
 	google.golang.org/genproto v0.0.0-20210524142926-3e3a6030be83
 )

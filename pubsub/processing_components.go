@@ -17,6 +17,31 @@ type PubSubElement struct {
 	SafeHash      string
 	Sign          string  // Sign hash where applicable
 	Dest          string  // added here in fanout.
+	Rid           int  // random integer. Rid + CompanyID + Ts will be UUID for a package.
+}
+
+type PubSubElementUUID struct {
+	CompanyID     int
+	Ts            int64
+	Rid           int
+}
+
+func (elem *PubSubElement) GetUUID() *PubSubElementUUID {
+	e := PubSubElementUUID{
+		CompanyID: elem.CompanyID,
+		Ts: elem.Ts,
+		Rid: elem.Rid,
+	}
+
+	return &e
+}
+
+func (elem *PubSubElement) IsSame(uuid *PubSubElementUUID) bool {
+	if elem.CompanyID != uuid.CompanyID || elem.Ts != uuid.Ts || elem.Rid != uuid.Rid {
+		return false
+	}
+
+	return true
 }
 
 // I don't know how to "give me 1000 objects in max 60s". It seems to always wait for 60s. So I do a small timeout

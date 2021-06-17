@@ -222,10 +222,10 @@ func cleanup() {
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
-func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
+func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("webhook responder is mis configured: %v", err)
+		return fmt.Errorf("forwarder.fanout.Fanout(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
 	}
 
 	defer cleanup()
@@ -233,8 +233,13 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.fanout.Fanout(%s): Db check failed: %v\n", devprod, err)
+		fmt.Printf("forwarder.fanout.Fanout(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
 		return err
+	}
+
+	if forwarderDb.IsPaused(hashId) {
+		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) We're in PAUSE\n", devprod, hashId)
+		return nil
 	}
 
 	// The webhook posts to the topic feeding inSubscriptionId
@@ -256,14 +261,14 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.fanout.Fanout(%s) failed to receive events: %v\n", devprod, err)
+		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) failed to receive events: %v\n", devprod, hashId, err)
 	}
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
 	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout.Fanout(%s): done. v.%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout.Fanout(%s, h%d): done. v%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

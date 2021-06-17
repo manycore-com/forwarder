@@ -22,4 +22,6 @@ func SetEnvVars() {
 	os.Setenv("DB_NAME", os.Getenv("FORWARDER_TEST_DB_NAME"))
 
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GOOGLE_APPLICATION_CREDENTIALS"))
+
+	os.Setenv("NBR_HASH", os.Getenv("FORWARDER_TEST_NBR_HASH"))
 }

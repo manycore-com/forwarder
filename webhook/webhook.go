@@ -9,6 +9,7 @@ import (
 	"fmt"
 	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
+	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io/ioutil"
 	"math/rand"
@@ -21,15 +22,6 @@ import (
 
 // Listens to requests on a webhook
 // Does a very quick verification, and then it puts them on an internal queue
-
-type PubSubElement struct {
-	CompanyID     int
-	ESP           string
-	ESPJsonString string
-	Ts            int64
-	SafeHash      string
-	Sign          string  // Sign hash where applicable
-}
 
 // We push everything over environment variables.
 // You can, instead of using this F() method directly, create your own package, add entry functions,
@@ -209,9 +201,9 @@ func F(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano())  // Rid in PubSubElement also needs Seed
 	if 0 == rand.Intn(100) {
-		fmt.Printf("Package: %v\n", string(b))
+		fmt.Printf("Package (rand 1/100 for debug): %v\n", string(b))
 	}
 
 	// The ESP sign cookie.
@@ -222,13 +214,14 @@ func F(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	structToPush := PubSubElement{
+	structToPush := forwarderPubsub.PubSubElement{
 		CompanyID: companyId,
 		ESP: esp,
 		ESPJsonString: string(b),
 		Ts: time.Now().Unix(),
 		SafeHash: safeHash,
 		Sign: sign,
+		Rid: int(rand.Int31()),  // Seed set above
 	}
 
 	payload, err := json.Marshal(structToPush)
@@ -246,7 +239,7 @@ func F(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var memUsage = forwarderStats.GetMemUsageStr()
-	fmt.Printf("forwarder.webhook.F(%s) ok. v.%s CompanyId:%d, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, companyId, memUsage)
+	fmt.Printf("forwarder.webhook.F(%s) ok. v%s CompanyId:%d, Memstats: %s\n", devprod, forwarderCommon.PackageVersion, companyId, memUsage)
 
 	fmt.Fprintf(w, "ok (%s)", memUsage)
 }

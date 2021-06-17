@@ -6,11 +6,13 @@ import (
 	"fmt"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func setEnv() error {
@@ -234,4 +236,9 @@ func TestMemLeak(t *testing.T) {
 	}
 
 
+}
+
+func TestRandInt(t *testing.T) {
+	rand.Seed(time.Now().UTC().UnixNano())
+	fmt.Printf("r: %d\n", int(rand.Int31()))
 }

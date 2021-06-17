@@ -36,11 +36,13 @@ func TestXX(t *testing.T) {
     }
 ]`
 
-	ctx1, _, nextForwardTopic, err := SetupClientAndTopic(os.Getenv("FORWARDER_TEST_PROJECT_ID"), nextTopicId)
+	ctx1, client, nextForwardTopic, err := SetupClientAndTopic(os.Getenv("FORWARDER_TEST_PROJECT_ID"), nextTopicId)
 	if err != nil {
 		fmt.Printf("forwarder.forward.asyncFailureProcessing(%s): Critical Error: Failed to instantiate Client: %v\n", devprod, err)
 		return
 	}
+
+	defer client.Close()
 
 	for i:=0; i<1000; i++ {
 
