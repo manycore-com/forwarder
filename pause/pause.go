@@ -50,8 +50,12 @@ func env() error {
 
 // Pause crates one pause row per hash, and it pauses Google Cloud Scheduler
 func Pause(jobNames []string) error {
+	err := env()
+	if nil != err {
+		return err
+	}
 
-	err := forwarderDb.CreatePauseRows(nbrHash)
+	err = forwarderDb.CreatePauseRows(nbrHash)
 	if nil != err {
 		forwarderDb.DeleteAllPauseRows()
 		return err
@@ -84,6 +88,11 @@ func Pause(jobNames []string) error {
 }
 
 func Resume(jobNames []string) error {
+	err := env()
+	if nil != err {
+		return err
+	}
+
 	ctx := context.Background()
 
 	cloudschedulerService, err := cloudscheduler.NewService(ctx)
