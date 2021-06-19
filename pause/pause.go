@@ -88,7 +88,7 @@ func Resume(jobNames []string) error {
 
 	cloudschedulerService, err := cloudscheduler.NewService(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("forwarder.pause.Resume() NewService failed: %v\n", err)
 	}
 
 	for _, jobName := range jobNames {
@@ -101,7 +101,7 @@ func Resume(jobNames []string) error {
 		resp, err := cloudschedulerService.Projects.Locations.Jobs.Resume(name, rb).Context(ctx).Do()
 		if err != nil {
 			forwarderDb.DeleteAllPauseRows()
-			return err
+			return fmt.Errorf("forwarder.pause.Resume() Jobs.Resume failed: %v\n", err)
 		}
 
 		fmt.Printf("%#v\n", resp)
@@ -109,7 +109,7 @@ func Resume(jobNames []string) error {
 
 	err = forwarderDb.DeleteAllPauseRows()
 	if nil != err {
-		return err
+		return fmt.Errorf("forwarder.pause.Resume() Failed to delete pause rows: %v\n", err)
 	}
 
 	return nil
