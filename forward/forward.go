@@ -1,6 +1,7 @@
 package forward
 
 import (
+	"cloud.google.com/go/pubsub"
 	"context"
 	"fmt"
 	forwarderCommon "github.com/manycore-com/forwarder/common"
@@ -26,6 +27,8 @@ var atQueue = -1
 var maxPubsubQueueIdleMs = 250
 var maxMessageAge = 3600 * 12
 var maxOutstandingMessages = 32
+var secondsThresholdToNextQueue = -1
+var nextQueueTopicId = ""
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
@@ -136,10 +139,27 @@ func env() error {
 		}
 	}
 
+	if "" != os.Getenv("SECONDS_THRESHOLD_TO_NEXT_QUEUE") {
+		secondsThresholdToNextQueue, err = strconv.Atoi(os.Getenv("SECONDS_THRESHOLD_TO_NEXT_QUEUE"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer SECONDS_THRESHOLD_TO_NEXT_QUEUE: %v", err)
+		}
+
+		if 0 > secondsThresholdToNextQueue {
+			return fmt.Errorf("optional SECONDS_THRESHOLD_TO_NEXT_QUEUE must be positive to make sense")
+		}
+	}
+
+	if "" != os.Getenv("NEXT_QUEUE_TOPIC_ID") {
+		nextQueueTopicId = os.Getenv("NEXT_QUEUE_TOPIC_ID")
+	}
+
 	return nil
 }
 
-func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, failureWaitGroup *sync.WaitGroup, nextTopicId string) {
+func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, failureWaitGroup *sync.WaitGroup, nextTopicId string, secondsThresholdToNextQueue int, nextQueueTopicId string) {
+	var nextQueueIfLt = time.Now().Unix() - int64(secondsThresholdToNextQueue)
+
 	for i:=0; i<nbrPublishWorkers; i++ {
 		failureWaitGroup.Add(1)
 		go func(idx int, failureWaitGroup *sync.WaitGroup) {
@@ -151,8 +171,24 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 			}
 
 			if err != nil {
+				// TODO: propagate error
 				fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client: %v\n", devprod, idx, err)
 				return
+			}
+
+			var ctx2 *context.Context
+			var client2 *pubsub.Client
+			var nextQueueTopic *pubsub.Topic
+			if "" != nextQueueTopicId && secondsThresholdToNextQueue > 0 {
+				ctx2, client2, nextQueueTopic, err = forwarderPubsub.SetupClientAndTopic(projectId, nextQueueTopicId)
+				if nil != client2 {
+					defer client2.Close()
+				}
+
+				if err != nil {
+					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client2: %v\n", devprod, idx, err)
+					secondsThresholdToNextQueue = -1
+				}
 			}
 
 			for {
@@ -167,14 +203,26 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 					continue
 				}
 
-				err = forwarderPubsub.PushElemToPubsub(ctx1, nextForwardTopic, elem)
-				if err != nil {
-					forwarderStats.AddLost(elem.CompanyID)
-					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
-					continue
-				}
+				if elem.Ts < nextQueueIfLt && 0 < secondsThresholdToNextQueue && "" != nextQueueTopicId {
+					// It's time to go to the next queue
+					err = forwarderPubsub.PushElemToPubsub(ctx2, nextQueueTopic, elem)
+					if err != nil {
+						forwarderStats.AddLost(elem.CompanyID)
+						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v (next queue)\n", devprod, idx, nextQueueTopicId, err)
+						continue
+					}
 
-				fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
+					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v (next queue)\n", devprod, idx, nextQueueTopicId, elem)
+				} else {
+					err = forwarderPubsub.PushElemToPubsub(ctx1, nextForwardTopic, elem)
+					if err != nil {
+						forwarderStats.AddLost(elem.CompanyID)
+						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
+						continue
+					}
+
+					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
+				}
 			}
 		} (i, failureWaitGroup)
 	}
@@ -287,7 +335,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 	defer close(pubsubForwardChan)
 	var forwardWaitGroup sync.WaitGroup
 
-	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outQueueTopicId)
+	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outQueueTopicId, secondsThresholdToNextQueue, nextQueueTopicId)
 
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
