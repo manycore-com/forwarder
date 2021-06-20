@@ -810,3 +810,21 @@ func GetLatestActiveCompanies() ([]int, error) {
 
 	return companies, nil
 }
+
+func CalculateQueueSizes() error {
+
+	companies, err := GetLatestActiveCompanies()
+	if nil != err {
+		return err
+	}
+
+    for _, companyId := range companies {
+		qsize, err := CalculateQueueSize(companyId)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("forwarder.pg.CalculateQueueSizes() companyId:%d queueSize:%d\n", companyId, qsize)
+	}
+
+	return nil
+}

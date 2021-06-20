@@ -104,3 +104,9 @@ func TestGetLatestActiveCompanies(t *testing.T) {
 	assert.NoError(t, err, "GetLatestActiveCompanies is buggy")
 	assert.NotNil(t, companies, "Companies is nil!")
 }
+
+func TestCalculateQueueSizes(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := CalculateQueueSizes()
+	assert.NoError(t, err, "Failed")
+}
