@@ -106,3 +106,12 @@ func TestCountItemsOnQueues(t *testing.T) {
 	}
 
 }
+
+func TestCountAndCheckpoint(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	os.Setenv("NBR_HASH", "1")
+	os.Setenv("GCP_LOCATION", "us-central1")
+
+	err := CountAndCheckpoint([]string{}, []string{})
+	assert.NoError(t, err, "Oh dang it")
+}

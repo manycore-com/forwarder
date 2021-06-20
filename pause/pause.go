@@ -315,13 +315,35 @@ func CountAndCheckpoint(subscriptionNames []string, jobNames []string) error {
 		return fmt.Errorf("forwarder.pause.CountAndCheckpoint(): Serious error trying to check queue size")
 	}
 
-	// Now we know that CompanyCountMap is initialized correctly
+	var mapOfProcessed = make(map[int]bool)
+
+    // Now we know that CompanyCountMap is initialized correctly
 	for companyId, queueSize := range CompanyCountMap {
+		mapOfProcessed[companyId] = true
 		err := forwarderDb.WriteQueueCheckpoint(companyId, queueSize)
 		if nil != err {
 			fmt.Printf("forwarder.pause.CountAndCheckpoint(): Failed to update cid:%d err:%v\n", companyId, err)
 			return err
 		}
+	}
+
+	// We want to take the companies that were active lately but had no items in the queue now, and write an empty
+	// checkpoint for them
+	companies, err := forwarderDb.GetLatestActiveCompanies()
+	if nil == err {
+		for _, companyId := range companies {
+			fmt.Printf("forwarder.pause.CountAndCheckpoint() Writing active companies with nothing on resend queue: %d\n", companyId)
+			if ! mapOfProcessed[companyId] {
+				err := forwarderDb.WriteQueueCheckpoint(companyId, 0)
+				if nil != err {
+					fmt.Printf("forwarder.pause.CountAndCheckpoint(): Failed to update (2) cid:%d err:%v\n", companyId, err)
+					return err
+				}
+
+			}
+		}
+	} else {
+		fmt.Printf("forwarder.pause.CountAndCheckpoint() GetLatestActiveCompanies failed: %v\n", err)
 	}
 
 	return Resume(jobNames)

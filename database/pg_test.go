@@ -97,3 +97,10 @@ func TestCalculateQueueSize(t *testing.T) {
 	fmt.Printf("Nbr items reported: %d\n", x)
 
 }
+
+func TestGetLatestActiveCompanies(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	companies, err := GetLatestActiveCompanies()
+	assert.NoError(t, err, "GetLatestActiveCompanies is buggy")
+	assert.NotNil(t, companies, "Companies is nil!")
+}

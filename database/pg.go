@@ -776,3 +776,37 @@ func CalculateQueueSize(companyId int) (int, error) {
 
 	return result, nil
 }
+
+func GetLatestActiveCompanies() ([]int, error) {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return nil, err
+	}
+
+	var companies = make([]int, 0, 100000)
+
+	q := `
+    select
+        distinct(company_id)
+    from
+        webhook_forwarder_daily_forward_stats_v2
+    where
+        created_at > now() - interval '3 day'
+    `
+	rows, err := dbconn.Query(context.Background(), q)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	var companyId int
+	for rows.Next() {
+		err = rows.Scan(&companyId)
+		companies = append(companies, companyId)
+	}
+
+	return companies, nil
+}
