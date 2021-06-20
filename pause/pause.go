@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"google.golang.org/api/cloudscheduler/v1"
 	"os"
 	"strconv"
@@ -84,6 +86,9 @@ func Pause(jobNames []string) error {
 		fmt.Printf("%#v\n", resp)
 	}
 
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.pause.Pause() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+
 	return nil
 }
 
@@ -120,6 +125,9 @@ func Resume(jobNames []string) error {
 	if nil != err {
 		return fmt.Errorf("forwarder.pause.Resume() Failed to delete pause rows: %v\n", err)
 	}
+
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.pause.Resume() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
 
 	return nil
 }
@@ -304,6 +312,9 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 
 	waitGroup.Wait()
 
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.pause.CountItemsOnQueues() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+
 	return seriousError
 }
 
@@ -346,5 +357,10 @@ func CountAndCheckpoint(subscriptionNames []string, jobNames []string) error {
 		fmt.Printf("forwarder.pause.CountAndCheckpoint() GetLatestActiveCompanies failed: %v\n", err)
 	}
 
-	return Resume(jobNames)
+	err = Resume(jobNames)
+
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.pause.CountAndCheckpoint() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+
+	return err
 }
