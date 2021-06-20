@@ -307,7 +307,8 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 	return seriousError
 }
 
-func CountAndCheckpoint(subscriptionNames []string) error {
+func CountAndCheckpoint(subscriptionNames []string, jobNames []string) error {
+	env()
 
 	// true -> serious error
 	if CountItemsOnQueues(subscriptionNames) {
@@ -323,5 +324,5 @@ func CountAndCheckpoint(subscriptionNames []string) error {
 		}
 	}
 
-	return nil
+	return Resume(jobNames)
 }
