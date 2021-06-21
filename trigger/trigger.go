@@ -124,6 +124,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	}
 
 	fmt.Printf("forwarder.trigger.Trigger(%s) Entry: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of: proj:%s subscription:%s\n", devprod, projectId, triggerSubscriptionId)
 
 	// 1. How many items are already on the trigger queue?
 	alreadyOnTriggerQueue, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, triggerSubscriptionId)
