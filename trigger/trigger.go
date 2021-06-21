@@ -124,7 +124,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	}
 
 	fmt.Printf("forwarder.trigger.Trigger(%s) Entry: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
-	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of: proj:%s subscription:%s\n", devprod, projectId, triggerSubscriptionId)
+	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of trigger queue: proj:%s subscription:%s\n", devprod, projectId, triggerSubscriptionId)
 
 	// 1. How many items are already on the trigger queue?
 	alreadyOnTriggerQueue, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, triggerSubscriptionId)
@@ -134,6 +134,8 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	}
 
 	// 2. Figure out how many items there in the subscription
+	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of message queue: proj:%s subscription:%s\n", devprod, projectId, subscriptionToProcess)
+
     nbrItemsInt64, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, subscriptionToProcess)
 	if nil != err {
 		fmt.Printf("forwarder.trigger.Trigger(%s) Failed to check queue size: %v\n", devprod, err)
