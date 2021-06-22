@@ -1,14 +1,12 @@
 package common
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
-	"net/smtp"
+	"gopkg.in/gomail.v2"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // Remember to set version in goPrivate too.
@@ -16,7 +14,7 @@ import (
 // git tag v0.9.0
 // git push origin v0.9.0
 
-var PackageVersion = "0.9.10"
+var PackageVersion = "0.9.11"
 
 var smtpHost string
 var smtpPort int
@@ -66,7 +64,7 @@ func GetDefaultFrom(alt string) string {
 	}
 }
 
-// SendMail should perhaps be replaced with https://github.com/go-gomail/gomail or similar instead.
+// SendMail is replaced with a call to go-mail
 func SendMail(from string, replyTo string, to []string, cc []string, bcc []string, subject string, message string) error {
 
 	if "" == from {
@@ -76,98 +74,30 @@ func SendMail(from string, replyTo string, to []string, cc []string, bcc []strin
 		}
 	}
 
-	auth := smtp.PlainAuth("", smtpHostUser, smtpHostPassword, smtpHost)
+	m := gomail.NewMessage()
+	m.SetHeader("From", from)
 
-	var client *smtp.Client
-
-	var err error
-	if smtpUseTls {
-		tlsconfig := &tls.Config {
-			InsecureSkipVerify: true,
-			//ServerName: smtpHost,  not needed with InsecureSkipVerify
-		}
-
-		// Here is the key, you need to call tls.Dial instead of smtp.Dial
-		// for smtp servers running on 465 that require an ssl connection
-		// from the very beginning (no starttls)
-		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", smtpHost, smtpPort), tlsconfig) // max fail
-		if err != nil {
-			return err
-		}
-
-		client, err = smtp.NewClient(conn, smtpHost)
-		if err != nil {
-			return err
-		}
-
-	} else {
-
-		client, err = smtp.Dial(fmt.Sprintf("%s:%d", smtpHost, smtpPort))
-		if err != nil {
-			return err
-		}
-
+	if to != nil {
+		m.SetHeader("To", to...)
 	}
 
-	// I looked at smtp.SendMail()
-	defer client.Close()
-
-	// Auth
-	if err = client.Auth(auth); err != nil {
-		return err
+	if cc != nil {
+		m.SetHeader("Cc", cc...)
 	}
 
-	// To && From
-	if err = client.Mail(from); err != nil {
-		return err
+	if bcc != nil {
+		m.SetHeader("Bcc", bcc...)
 	}
 
-	for _, toAddress := range to {
-		if err = client.Rcpt(toAddress); err != nil {
-			return err
-		}
+	m.SetHeader("Subject", subject)
+
+	m.SetBody("text/plain", message)
+
+	d := gomail.NewDialer(smtpHost, smtpPort, smtpHostUser, smtpHostPassword)
+	d.TLSConfig = &tls.Config {
+		InsecureSkipVerify: true,
+		//ServerName: smtpHost,  not needed with InsecureSkipVerify
 	}
 
-	wc, err := client.Data()
-	if err != nil {
-		return err
-	}
-
-	var body bytes.Buffer
-	body.Write([]byte("Subject: " + subject + "\r\n"))
-	if nil != to {
-		for _, toAddr := range to {
-			body.Write([]byte("To: " + toAddr + "\r\n"))
-		}
-	}
-	if nil != cc {
-		for _, ccAddr := range cc {
-			body.Write([]byte("Cc: " + ccAddr + "\r\n"))
-		}
-	}
-	if nil != bcc {
-		for _, bccAddr := range bcc {
-			body.Write([]byte("Bcc: " + bccAddr + "\r\n"))
-		}
-	}
-	body.Write([]byte("From: " + from + "\r\n"))
-	if "" != replyTo {
-		body.Write([]byte("Reply-To: " + replyTo + "\r\n"))
-	}
-	body.Write([]byte("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n"))
-	body.Write([]byte("\r\n"))
-
-	body.Write([]byte(message))
-
-	_, err = wc.Write(body.Bytes())
-	if err != nil {
-		return err
-	}
-
-	err = wc.Close()
-	if err != nil {
-		return err
-	}
-
-	return client.Quit()  // client.Close() is deferred
+	return d.DialAndSend(m)
 }
