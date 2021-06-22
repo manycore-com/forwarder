@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v4"
+	"github.com/lib/pq"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"os"
 	"strconv"
@@ -56,6 +57,8 @@ func GetDbConnection() (*pgx.Conn, error) {
 type CompanyInfo struct {
 	ForwardUrl    []string
 	Secret        string
+	WarnedAt      pq.NullTime  // Can't Scan() null into normal *time.Time
+	DisabledAt    pq.NullTime
 }
 
 type OneJsonRow struct {
@@ -122,6 +125,8 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 
 		var jsonStr string
 		var secret string
+		var warnedAt pq.NullTime
+		var disabledAt pq.NullTime
 		q := `
         select 
             coalesce((
@@ -136,13 +141,15 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                         ipe.is_active = true
                 ) t
             ),'[]') as json,
-            secret
+            secret,
+            warned_at,
+            disabled_at
         from 
             webhook_forwarder_poll_cfg ipc
         where company_id = $1
         `
 
-		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret)
+		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret, &warnedAt, &disabledAt)
 		if err != nil {
 			if strings.Contains(fmt.Sprintf("%v", err), "no rows in result set") {
 				companyInfoMap[companyId] = nil
@@ -153,7 +160,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 			return nil, err
 		}
 
-		var ci = CompanyInfo{Secret: secret}
+		var ci = CompanyInfo{Secret: secret, WarnedAt: warnedAt, DisabledAt: disabledAt}
 		companyInfoMap[companyId] = &ci
 		theElem = &ci
 
@@ -824,6 +831,150 @@ func CalculateQueueSizes() error {
 			return err
 		}
 		fmt.Printf("forwarder.pg.CalculateQueueSizes() companyId:%d queueSize:%d\n", companyId, qsize)
+	}
+
+	return nil
+}
+
+type CompanyQueueSize struct {
+	CompanyId     int
+	PresentHour   int
+	QueueSize     int
+	WarnedAt      *time.Time  // nullable!
+	DisabledAt    *time.Time  // nullable!
+	AlertEmail    string
+}
+
+func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	hourNow := now.Hour()
+	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	outArray := make([]*CompanyQueueSize, 0, 0)
+
+	var companyId int
+	var presentHour = hourNow
+	var queueSize int
+	var warnedAt pq.NullTime
+	var disabledAt pq.NullTime
+	var alertEmail string
+
+	// TODO add some min level. Eg. only bother if >1000 items in queue
+	q := `
+    select
+        ws.company_id,
+        ws.qus_h` + fmt.Sprintf("%02d", hourNow) + `,
+        wc.warned_at,
+        wc.disabled_at,
+        uc.alert_email
+    from
+        webhook_forwarder_daily_forward_stats_v2 ws,
+        webhook_forwarder_poll_cfg wc,
+        users_company uc
+    where
+        ws.created_at = $1 AND
+        ws.company_id = wc.company_id AND
+        wc.disabled_at is null AND
+        uc.id = ws.company_id
+    `
+	rows, err := dbconn.Query(context.Background(), q, day)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&companyId, &queueSize, &warnedAt, &disabledAt, &alertEmail)
+		if nil != err {
+			return nil, err
+		}
+
+		cqs := CompanyQueueSize{
+			CompanyId: companyId,
+			PresentHour: presentHour,
+			QueueSize: queueSize,
+			AlertEmail: alertEmail,
+		}
+
+		if warnedAt.Valid {
+			cqs.WarnedAt = &warnedAt.Time
+		}
+
+		if disabledAt.Valid {
+			cqs.DisabledAt = &disabledAt.Time
+		}
+
+		outArray = append(outArray, &cqs)
+	}
+
+	return outArray, nil
+}
+
+func SetWarnedAt(companyId int) error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return err
+	}
+
+	q := `
+    update webhook_forwarder_poll_cfg
+    set
+        warned_at = now()
+    where
+        company_id = $1
+    `
+	_, err = dbconn.Exec(context.Background(), q, companyId)
+	if nil != err {
+		return err
+	}
+
+	return nil
+}
+
+// DisableCompany sets the disabled_at and falsifies all rows with forwarder data. You need to mail the customer elsewhere.
+func DisableCompany(companyId int) error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return err
+	}
+
+	q := `
+    update webhook_forwarder_poll_cfg
+    set
+        disabled_at = now()
+    where
+        company_id = $1
+    `
+	_, err = dbconn.Exec(context.Background(), q, companyId)
+	if nil != err {
+		return fmt.Errorf("forwarder.database.pg.DisableCompany() failed to set disabled_at: %v", err)
+	}
+
+	q = `
+    update webhook_forwarder_poll_endpoint
+    set
+        is_active = false
+    where
+        company_id = $1 and
+        is_active = true
+    `
+	_, err = dbconn.Exec(context.Background(), q, companyId)
+	if nil != err {
+		return fmt.Errorf("forwarder.database.pg.DisableCompany() failed to update is_active: %v", err)
 	}
 
 	return nil

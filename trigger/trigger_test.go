@@ -2,7 +2,9 @@ package trigger
 
 import (
 	"fmt"
+	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
+	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"strconv"
@@ -100,5 +102,18 @@ func TestYY(t *testing.T) {
 	e := t123()
 	fmt.Printf("ant: %v, er:%v \n", maxNbrMessagesPolled, e)
 
+}
+
+func TestBugNotSeeingItems(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "/home/ehsmeng/ib3keys/gcloud_credentials/inboxbooster3-4acfb5d777ed-pubsub-devprod-queue.json")
+
+	env()
+	subscriptionToProcess = "INBOXBOOSTER_DEVPROD_FORWARD3_2"
+
+	nbrItemsInt64, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, subscriptionToProcess)
+	assert.NoError(t, err, "Failed to check")
+	fmt.Printf("nbr elem: %d\n", nbrItemsInt64)
 }
 

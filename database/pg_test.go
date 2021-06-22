@@ -110,3 +110,25 @@ func TestCalculateQueueSizes(t *testing.T) {
 	err := CalculateQueueSizes()
 	assert.NoError(t, err, "Failed")
 }
+
+
+func TestGetCompaniesAndQueueSizes(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	arr, err := GetCompaniesAndQueueSizes()
+	assert.NoError(t, err, "Dang it")
+	for _, elem := range arr {
+		fmt.Printf("Elem: %v\n", elem)
+	}
+}
+
+func TestSetWarnedAt(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := SetWarnedAt(1)
+	assert.NoError(t, err, "oh no!")
+}
+
+func TestDisableCompany(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := DisableCompany(1)
+	assert.NoError(t, err, "oh no!")
+}
