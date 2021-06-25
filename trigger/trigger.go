@@ -19,6 +19,7 @@ var triggerSubscriptionId = ""
 var projectId = ""
 var devprod = ""
 var nbrPublishWorkers = 32
+var triggerPackagesScaler float64 = 1.0  // Somehow it seems like we don't consume everything, so let's try surplus triggers
 func env() error {
 	var err error
 
@@ -69,6 +70,21 @@ func env() error {
 
 		if 1000 < nbrPublishWorkers {
 			return fmt.Errorf("optional NBR_PUBLISH_WORKER environent should not be over 1000: %v", nbrPublishWorkers)
+		}
+	}
+	
+	if "" != os.Getenv("TRIGGER_PACKAGES_SCALAR") {
+		triggerPackagesScaler, err = strconv.ParseFloat(os.Getenv("TRIGGER_PACKAGES_SCALAR"), 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse optional float TRIGGER_PACKAGES_SCALAR: %v", err)
+		}
+
+		if 0.25 > triggerPackagesScaler {
+			return fmt.Errorf("optional TRIGGER_PACKAGES_SCALAR environent variable must be at least 0.25: %f", triggerPackagesScaler)
+		}
+
+		if 5 < triggerPackagesScaler {
+			return fmt.Errorf("optional TRIGGER_PACKAGES_SCALAR environent variable must be at max 5: %f", triggerPackagesScaler)
 		}
 	}
 
@@ -144,7 +160,7 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	fmt.Printf("forwarder.trigger.Trigger(%s) After size checks: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
 
-	iterations := int64(math.Ceil(float64(nbrItemsInt64) / float64(maxNbrMessagesPolled))) - alreadyOnTriggerQueue
+	iterations := int64(math.Ceil(triggerPackagesScaler * float64(nbrItemsInt64) / float64(maxNbrMessagesPolled))) - alreadyOnTriggerQueue
 
 	// 3. Send the trigger packages in concurrently or we'll be here all day.
 	messageQueue := make(chan int64, nbrPublishWorkers)
