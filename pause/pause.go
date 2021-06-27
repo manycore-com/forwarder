@@ -257,9 +257,7 @@ func MoveAndCount(subscriptionPairs [][]string, reverse bool) bool {
 				}
 			} ()
 
-			fmt.Printf("Before Receive\n")
 			err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
-				fmt.Printf("Enter Receive\n")
 				mu.Lock()
 				var runTickCopy = runTick
 				mu.Unlock()
@@ -321,6 +319,9 @@ func CountAndCheckpoint2(subscriptionPairs [][]string, jobNames []string) error 
 	if MoveAndCount(subscriptionPairs, false) {
 		return fmt.Errorf("forwarder.pause.CountAndCheckpoint2(): Serious error trying to check queue size")
 	}
+
+	fmt.Printf("Sleep 30s so queues have a chance to register their items")
+	time.Sleep(time.Second * 30)
 
 	// true -> serious error
 	if MoveAndCount(subscriptionPairs, true) {
