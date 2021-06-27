@@ -170,18 +170,27 @@ func WriteBackMessages(nbrWriteBackWorkers int, writeBackChan *chan *forwarderPu
 
 var CompanyCountMap map[int]int
 
-// CountItemsOnQueues returns true if we encountered any serious error.
-func CountItemsOnQueues(subscriptionNames []string) bool {
+func MoveAndCount(subscriptionPairs [][]string, reverse bool) bool {
 	CompanyCountMap = make(map[int]int)
 
 	var nbrWriteBackWorkers int = 16
 	var seriousError bool = false
 	var waitGroup sync.WaitGroup
 
-	for _, subscriptionName := range subscriptionNames {
+	for _, subscriptionPair := range subscriptionPairs {
+		var sourceSubscription string
+		var destSubscription string
+		if reverse {
+			sourceSubscription = subscriptionPair[1]
+			destSubscription = subscriptionPair[0]
+		} else {
+			sourceSubscription = subscriptionPair[0]
+			destSubscription = subscriptionPair[1]
+		}
+
 		waitGroup.Add(1)
 
-		go func(waitGroup *sync.WaitGroup, subscriptionName string) {
+		go func(waitGroup *sync.WaitGroup, sourceSubscription string, destSubscription string) {
 			defer waitGroup.Done()
 
 			// Setup writeback queue
@@ -190,7 +199,7 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 			var writeBackWaitGroup sync.WaitGroup
 
 			// Starts async writers
-			WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, subscriptionName)
+			WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, destSubscription)
 			defer func(nbrWorkers int, writeBackWaitGroup *sync.WaitGroup) {
 				for i:=0; i<nbrWorkers; i++ {
 					writeBackChan <- nil
@@ -202,7 +211,7 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 			ctx := context.Background()
 			client, clientErr := pubsub.NewClient(ctx, projectId)
 			if clientErr != nil {
-				fmt.Printf("forwarder.pause.CountItemsOnQueue(%s) failed to create client: %v\n", subscriptionName, clientErr)
+				fmt.Printf("forwarder.pause.MoveAndCount(%s) failed to create client: %v\n", sourceSubscription, clientErr)
 				seriousError = true
 				return
 			}
@@ -211,10 +220,11 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 				defer client.Close()
 			}
 
-			subscription := client.Subscription(subscriptionName)
+			subscription := client.Subscription(sourceSubscription)
 			subscription.ReceiveSettings.Synchronous = true
 			subscription.ReceiveSettings.MaxOutstandingMessages = nbrWriteBackWorkers
 			subscription.ReceiveSettings.MaxOutstandingBytes = 11000000
+			fmt.Printf("Source subscription: %v\n", sourceSubscription)
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(500) * time.Second)
 			defer cancel()
@@ -237,7 +247,7 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 
 					var rightNow = time.Now().UnixNano() / 1000000
 					if (int64(6000) + copyOfLastAtMs) < rightNow {
-						fmt.Printf("forwarder.pause.CountItemsOnQueues.func(%s) Killing Receive due to %dms inactivity.\n", subscriptionName, 6000)
+						fmt.Printf("forwarder.pause.MoveAndCount.func(%s) Killing Receive due to %dms inactivity.\n", sourceSubscription, 6000)
 						mu.Lock()
 						runTick = false
 						mu.Unlock()
@@ -247,14 +257,15 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 				}
 			} ()
 
-			var firstFewElementsMap = make(map[forwarderPubsub.PubSubElementUUID]bool)
+			fmt.Printf("Before Receive\n")
 			err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+				fmt.Printf("Enter Receive\n")
 				mu.Lock()
 				var runTickCopy = runTick
 				mu.Unlock()
 
 				if ! runTickCopy {
-					fmt.Printf("forwarder.pause.CountItemsOnQueues.Receive(%s) we are canceled.\n", subscriptionName)
+					fmt.Printf("forwarder.pause.MoveAndCount.Receive(%s) we are canceled.\n", sourceSubscription)
 					defer msg.Nack()
 					return
 				}
@@ -263,23 +274,7 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 				err := json.Unmarshal(msg.Data, &elem)
 
 				if nil == err {
-					uuid := elem.GetUUID()
-
 					mu.Lock()
-					_, uuidExists := firstFewElementsMap[*uuid]
-					if uuidExists {
-						runTick = false
-						mu.Unlock()  // Note
-
-						fmt.Printf("forwarder.pause.CountItemsOnQueues.Receive(%s): We got one of the first elements again! %v\n", subscriptionName, uuid)
-						msg.Nack()
-						cancel()
-						return
-					}
-
-					if len(firstFewElementsMap) < 32 {
-						firstFewElementsMap[*uuid] = true
-					}
 
 					// Is there an item?
 					if val, ok := CompanyCountMap[elem.CompanyID]; ok {
@@ -287,53 +282,59 @@ func CountItemsOnQueues(subscriptionNames []string) bool {
 					} else {
 						CompanyCountMap[elem.CompanyID] = 1
 					}
+
 					lastAtMs = time.Now().UnixNano() / 1000000
 
 					mu.Unlock()
 
-					fmt.Printf("forwarder.pause.CountItemsOnQueues.Receive(%s): counted message %v\n", subscriptionName, elem)
+					fmt.Printf("forwarder.pause.MoveAndCount.Receive(%s): counted message %v\n", sourceSubscription, elem)
 					writeBackChan <- &elem
 					msg.Ack()
 
 				} else {
-					fmt.Printf("forwarder.pause.CountItemsOnQueues.Receive(%s): Error: failed to Unmarshal: %v\n", subscriptionName, err)
+					fmt.Printf("forwarder.pause.MoveAndCount.Receive(%s): Error: failed to Unmarshal: %v\n", sourceSubscription, err)
 					msg.Ack()  // Valid or not, Ack to get rid of it
 				}
 			})
 
 			if nil != err {
-				fmt.Printf("forwarder.pause.CountItemsOnQueue(%s) Received failed: %v\n", subscriptionName, err)
+				fmt.Printf("forwarder.pause.MoveAndCount(%s) Received failed: %v\n", sourceSubscription, err)
 				// The defer anonymous function will write -1 instead
 				seriousError = true
 			}
 
-		} (&waitGroup, subscriptionName)
+		} (&waitGroup, sourceSubscription, destSubscription)
 	}
 
 	waitGroup.Wait()
 
 	var memUsage = forwarderStats.GetMemUsageStr()
-	fmt.Printf("forwarder.pause.CountItemsOnQueues() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+	fmt.Printf("forwarder.pause.MoveAndCount() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
 
 	return seriousError
 }
 
-func CountAndCheckpoint(subscriptionNames []string, jobNames []string) error {
+func CountAndCheckpoint2(subscriptionPairs [][]string, jobNames []string) error {
 	env()
 
 	// true -> serious error
-	if CountItemsOnQueues(subscriptionNames) {
-		return fmt.Errorf("forwarder.pause.CountAndCheckpoint(): Serious error trying to check queue size")
+	if MoveAndCount(subscriptionPairs, false) {
+		return fmt.Errorf("forwarder.pause.CountAndCheckpoint2(): Serious error trying to check queue size")
+	}
+
+	// true -> serious error
+	if MoveAndCount(subscriptionPairs, true) {
+		return fmt.Errorf("forwarder.pause.CountAndCheckpoint2(): Serious error trying to check queue size (2)")
 	}
 
 	var mapOfProcessed = make(map[int]bool)
 
-    // Now we know that CompanyCountMap is initialized correctly
+	// Now we know that CompanyCountMap is initialized correctly
 	for companyId, queueSize := range CompanyCountMap {
 		mapOfProcessed[companyId] = true
 		err := forwarderDb.WriteQueueCheckpoint(companyId, queueSize)
 		if nil != err {
-			fmt.Printf("forwarder.pause.CountAndCheckpoint(): Failed to update cid:%d err:%v\n", companyId, err)
+			fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update cid:%d err:%v\n", companyId, err)
 			return err
 		}
 	}
@@ -343,24 +344,24 @@ func CountAndCheckpoint(subscriptionNames []string, jobNames []string) error {
 	companies, err := forwarderDb.GetLatestActiveCompanies()
 	if nil == err {
 		for _, companyId := range companies {
-			fmt.Printf("forwarder.pause.CountAndCheckpoint() Writing active companies with nothing on resend queue: %d\n", companyId)
+			fmt.Printf("forwarder.pause.CountAndCheckpoint2() Writing active companies with nothing on resend queue: %d\n", companyId)
 			if ! mapOfProcessed[companyId] {
 				err := forwarderDb.WriteQueueCheckpoint(companyId, 0)
 				if nil != err {
-					fmt.Printf("forwarder.pause.CountAndCheckpoint(): Failed to update (2) cid:%d err:%v\n", companyId, err)
+					fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update (2) cid:%d err:%v\n", companyId, err)
 					return err
 				}
 
 			}
 		}
 	} else {
-		fmt.Printf("forwarder.pause.CountAndCheckpoint() GetLatestActiveCompanies failed: %v\n", err)
+		fmt.Printf("forwarder.pause.CountAndCheckpoint2() GetLatestActiveCompanies failed: %v\n", err)
 	}
 
 	err = Resume(jobNames)
 
 	var memUsage = forwarderStats.GetMemUsageStr()
-	fmt.Printf("forwarder.pause.CountAndCheckpoint() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+	fmt.Printf("forwarder.pause.CountAndCheckpoint2() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
 
 	return err
 }

@@ -66,7 +66,7 @@ func TestWriteBackMessages(t *testing.T) {
 	// Starts async writers
 	WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, "TESTING")
 
-	for i:=0; i<30; i++ {
+	for i:=0; i<1470; i++ {
 		m := forwarderPubsub.PubSubElement{
 			CompanyID: rand.Intn(4) + 1,
 			Ts: 123,
@@ -88,7 +88,7 @@ func TestWriteBackMessages(t *testing.T) {
 
 }
 
-func TestCountItemsOnQueues(t *testing.T) {
+func TestMoveAndCount(t *testing.T) {
 	forwarderTest.SetEnvVars()
 	os.Setenv("NBR_HASH", "1")
 	os.Setenv("GCP_LOCATION", "us-central1")
@@ -96,22 +96,26 @@ func TestCountItemsOnQueues(t *testing.T) {
 	err := env()
 	assert.NoError(t, err, "env() failed")
 
-	subscriptionNames := []string{"TESTING"}
-
-	r := CountItemsOnQueues(subscriptionNames)
-	fmt.Printf("serious error: %v\n", r)
-
+	apa := MoveAndCount([][]string{ []string{"TESTING", "TESTING2"}  }, false)
+	assert.False(t, apa)
 	for companyId, count := range CompanyCountMap {
 		fmt.Printf("company: %4d, count: %4d\n", companyId, count)
 	}
 
 }
 
-func TestCountAndCheckpoint(t *testing.T) {
+func TestMoveAndCountReverse(t *testing.T) {
 	forwarderTest.SetEnvVars()
 	os.Setenv("NBR_HASH", "1")
 	os.Setenv("GCP_LOCATION", "us-central1")
 
-	err := CountAndCheckpoint([]string{}, []string{})
-	assert.NoError(t, err, "Oh dang it")
+	err := env()
+	assert.NoError(t, err, "env() failed")
+
+	apa := MoveAndCount([][]string{ []string{"TESTING", "TESTING2"}  }, true)
+	assert.False(t, apa)
+	for companyId, count := range CompanyCountMap {
+		fmt.Printf("company: %4d, count: %4d\n", companyId, count)
+	}
+
 }
