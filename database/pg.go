@@ -197,9 +197,13 @@ func UpdateUsage(companyId int, stats *forwarderStats.Stats) (int, int, int, int
 	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 
 	r := stats.ReceivedAtH
-	a := stats.AgeWhenForward
+	a := [24]int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	f := stats.ForwardedAtH
 	e := stats.EnterQueueAtH
+
+	for i:=0; i<24; i++ {
+		a[i] = stats.AgeWhenForward[forwarderStats.TruncatedHourList[i]]
+	}
 
 	// First we try a normal update, and if that fails we do an upsert.
 	q := `
@@ -215,9 +219,9 @@ SET
     age_h00 = o.age_h00 + $25, age_h01 = o.age_h01 + $26, age_h02 = o.age_h02 + $27, age_h03 = o.age_h03 + $28,
     age_h04 = o.age_h04 + $29, age_h05 = o.age_h05 + $30, age_h06 = o.age_h06 + $31, age_h07 = o.age_h07 + $32,
     age_h08 = o.age_h08 + $33, age_h09 = o.age_h09 + $34, age_h10 = o.age_h10 + $35, age_h11 = o.age_h11 + $36,
-    age_h12 = o.age_h12 + $37, age_h13 = o.age_h13 + $38, age_h14 = o.age_h14 + $39, age_h15 = o.age_h15 + $40,
-    age_h16 = o.age_h16 + $41, age_h17 = o.age_h17 + $42, age_h18 = o.age_h18 + $43, age_h19 = o.age_h19 + $44,
-    age_h20 = o.age_h20 + $45, age_h21 = o.age_h21 + $46, age_h22 = o.age_h22 + $47, age_h23 = o.age_h23 + $48, 
+    age_h12 = o.age_h12 + $37, age_h16 = o.age_h16 + $38, age_h20 = o.age_h20 + $39, age_h24 = o.age_h24 + $40,
+    age_h28 = o.age_h28 + $41, age_h32 = o.age_h32 + $42, age_h36 = o.age_h36 + $43, age_h42 = o.age_h42 + $44,
+    age_h48 = o.age_h48 + $45, age_h54 = o.age_h54 + $46, age_h60 = o.age_h60 + $47, age_h66 = o.age_h66 + $48,
 
     fwd_h00 = o.fwd_h00 + $49, fwd_h01 = o.fwd_h01 + $50, fwd_h02 = o.fwd_h02 + $51, fwd_h03 = o.fwd_h03 + $52,
     fwd_h04 = o.fwd_h04 + $53, fwd_h05 = o.fwd_h05 + $54, fwd_h06 = o.fwd_h06 + $55, fwd_h07 = o.fwd_h07 + $56,
@@ -267,7 +271,7 @@ INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
     rec_h00, rec_h01, rec_h02, rec_h03, rec_h04, rec_h05, rec_h06, rec_h07, rec_h08, rec_h09, rec_h10, rec_h11,
     rec_h12, rec_h13, rec_h14, rec_h15, rec_h16, rec_h17, rec_h18, rec_h19, rec_h20, rec_h21, rec_h22, rec_h23,
     age_h00, age_h01, age_h02, age_h03, age_h04, age_h05, age_h06, age_h07, age_h08, age_h09, age_h10, age_h11,
-    age_h12, age_h13, age_h14, age_h15, age_h16, age_h17, age_h18, age_h19, age_h20, age_h21, age_h22, age_h23,
+    age_h12, age_h16, age_h20, age_h24, age_h28, age_h32, age_h36, age_h42, age_h48, age_h54, age_h60, age_h66,
     fwd_h00, fwd_h01, fwd_h02, fwd_h03, fwd_h04, fwd_h05, fwd_h06, fwd_h07, fwd_h08, fwd_h09, fwd_h10, fwd_h11,
     fwd_h12, fwd_h13, fwd_h14, fwd_h15, fwd_h16, fwd_h17, fwd_h18, fwd_h19, fwd_h20, fwd_h21, fwd_h22, fwd_h23,
     ent_h00, ent_h01, ent_h02, ent_h03, ent_h04, ent_h05, ent_h06, ent_h07, ent_h08, ent_h09, ent_h10, ent_h11,
@@ -305,9 +309,9 @@ SET
     age_h00 = o.age_h00 + $126, age_h01 = o.age_h01 + $127, age_h02 = o.age_h02 + $128, age_h03 = o.age_h03 + $129,
     age_h04 = o.age_h04 + $130, age_h05 = o.age_h05 + $131, age_h06 = o.age_h06 + $132, age_h07 = o.age_h07 + $133,
     age_h08 = o.age_h08 + $134, age_h09 = o.age_h09 + $135, age_h10 = o.age_h10 + $136, age_h11 = o.age_h11 + $137,
-    age_h12 = o.age_h12 + $138, age_h13 = o.age_h13 + $139, age_h14 = o.age_h14 + $140, age_h15 = o.age_h15 + $141,
-    age_h16 = o.age_h16 + $142, age_h17 = o.age_h17 + $143, age_h18 = o.age_h18 + $144, age_h19 = o.age_h19 + $145,
-    age_h20 = o.age_h20 + $146, age_h21 = o.age_h21 + $147, age_h22 = o.age_h22 + $148, age_h23 = o.age_h23 + $149,
+    age_h12 = o.age_h12 + $138, age_h16 = o.age_h16 + $139, age_h20 = o.age_h20 + $140, age_h24 = o.age_h24 + $141,
+    age_h28 = o.age_h28 + $142, age_h32 = o.age_h32 + $143, age_h36 = o.age_h36 + $144, age_h42 = o.age_h42 + $145,
+    age_h48 = o.age_h48 + $146, age_h54 = o.age_h54 + $147, age_h60 = o.age_h60 + $148, age_h66 = o.age_h66 + $149,
 
     fwd_h00 = o.fwd_h00 + $150, fwd_h01 = o.fwd_h01 + $151, fwd_h02 = o.fwd_h02 + $152, fwd_h03 = o.fwd_h03 + $153,
     fwd_h04 = o.fwd_h04 + $154, fwd_h05 = o.fwd_h05 + $155, fwd_h06 = o.fwd_h06 + $156, fwd_h07 = o.fwd_h07 + $157,

@@ -6,6 +6,7 @@ import (
 	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestGetUserData2(t *testing.T) {
@@ -58,6 +59,10 @@ func TestWriteStatsToDbV2(t *testing.T) {
 	forwarderStats.AddLost(1)
 	forwarderStats.AddTimeout(1)
 	forwarderStats.AddTimeout(1)
+
+	var now = time.Now().Unix()
+	forwarderStats.AddAgeWhenForward(1, now - int64(60*3600))
+
 	WriteStatsToDb()
 }
 
