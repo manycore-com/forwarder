@@ -612,7 +612,7 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
 	q := `
     select
         rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
-	    age_h00 + age_h01 + age_h02 + age_h03 + age_h04 + age_h05 + age_h06 + age_h07 + age_h08 + age_h09 + age_h10 + age_h11 + age_h12 + age_h13 + age_h14 + age_h15 + age_h16 + age_h17 + age_h18 + age_h19 + age_h20 + age_h21 + age_h22 + age_h23 as sum_age,
+	    coalesce(age_h00,0) + coalesce(age_h01,0) + coalesce(age_h02,0) + coalesce(age_h03,0) + coalesce(age_h04,0) + coalesce(age_h05,0) + coalesce(age_h06,0) + coalesce(age_h07,0) + coalesce(age_h08,0) + coalesce(age_h09,0) + coalesce(age_h10,0) + coalesce(age_h11,0) + coalesce(age_h12,0) + coalesce(age_h16,0) + coalesce(age_h20,0) + coalesce(age_h24,0) + coalesce(age_h28,0) + coalesce(age_h32,0) + coalesce(age_h36,0) + coalesce(age_h42,0) + coalesce(age_h48,0) + coalesce(age_h54,0) + coalesce(age_h60,0) + coalesce(age_h66,0) as sum_age,
         fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
         ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
         total_lost_messages as total_lost_messages,
@@ -734,7 +734,7 @@ func CalculateQueueSize(companyId int) (int, error) {
 	q = `
     select
         rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
-	    age_h00 + age_h01 + age_h02 + age_h03 + age_h04 + age_h05 + age_h06 + age_h07 + age_h08 + age_h09 + age_h10 + age_h11 + age_h12 + age_h13 + age_h14 + age_h15 + age_h16 + age_h17 + age_h18 + age_h19 + age_h20 + age_h21 + age_h22 + age_h23 as sum_age,
+	    coalesce(age_h00,0) + coalesce(age_h01,0) + coalesce(age_h02,0) + coalesce(age_h03,0) + coalesce(age_h04,0) + coalesce(age_h05,0) + coalesce(age_h06,0) + coalesce(age_h07,0) + coalesce(age_h08,0) + coalesce(age_h09,0) + coalesce(age_h10,0) + coalesce(age_h11,0) + coalesce(age_h12,0) + coalesce(age_h16,0) + coalesce(age_h20,0) + coalesce(age_h24,0) + coalesce(age_h28,0) + coalesce(age_h32,0) + coalesce(age_h36,0) + coalesce(age_h42,0) + coalesce(age_h48,0) + coalesce(age_h54,0) + coalesce(age_h60,0) + coalesce(age_h66,0) as sum_age,
         fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
         ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
         total_lost_messages as total_lost_messages,
