@@ -37,6 +37,7 @@ func Init() error {
 	redisPool = &redis.Pool{
 		MaxIdle: maxConnections,
 		Dial:    func() (redis.Conn, error) {
+			fmt.Printf("forwarder.redis.Init(): Connecting to %s\n", redisAddr)
 			c, err:= redis.Dial("tcp", redisAddr)
 			if err != nil {
 				return nil, err

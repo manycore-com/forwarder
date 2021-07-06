@@ -26,6 +26,8 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 		return val, nil
 	}
 
+	fmt.Printf("forwarder.IQ.GetEndPointData(): Local cache miss, trying redis. id=%d\n", endPointId)
+
 	// ok try Redis
 	key := "FWD_IQ_GETENDPOINTDATA_" + strconv.Itoa(endPointId)
 	byteArray, _ := forwarderRedis.Get(key)
@@ -37,6 +39,8 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 		endpointIdToCfg[endPointId] = &cfg
 		return &cfg, nil
 	}
+
+	fmt.Printf("forwarder.IQ.GetEndPointData(): Redis miss, trying db. id=%d\n", endPointId)
 
 	// wasn't in redis. Load from db.
 	cfg, err := forwarderDb.GetEndPointCfg(endPointId)
