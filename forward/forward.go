@@ -8,6 +8,7 @@ import (
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderEsp "github.com/manycore-com/forwarder/esp"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
+	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"os"
 	"strconv"
@@ -326,6 +327,12 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) We're in PAUSE\n", devprod, hashId)
 		return nil
 	}
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		return fmt.Errorf("failed to init redis: %v", err)
+	}
+	defer forwarderRedis.Cleanup()
 
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
 	defer close(pubsubFailureChan)

@@ -3,12 +3,18 @@ package esp
 import (
 	"fmt"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
+	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
+	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestForwardSg(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := forwarderRedis.Init()
+	assert.NoError(t, err, "Fail")
+	defer forwarderRedis.Cleanup()
 
 	for i:=0; i<300; i++ {
 		x := forwarderPubsub.PubSubElement{
