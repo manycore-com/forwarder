@@ -44,11 +44,14 @@ func Init() error {
 			}
 
 			if "" != os.Getenv("REDISAUTH") {
+				fmt.Printf("forwarder.redis.Init(): sending auth\n")
 				if _, err := c.Do("AUTH", os.Getenv("REDISAUTH")); err != nil {
 					c.Close()
 					return nil, err
 				}
 			}
+
+			fmt.Printf("forwarder.redis.Init(): connected\n")
 
 			return c, nil
 		},
