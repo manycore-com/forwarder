@@ -66,11 +66,11 @@ func TestWriteBackMessages(t *testing.T) {
 	// Starts async writers
 	WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, "TESTING")
 
-	for i:=0; i<1470; i++ {
+	for i:=0; i<10; i++ {
 		m := forwarderPubsub.PubSubElement{
 			CompanyID: rand.Intn(4) + 1,
 			Ts: 123,
-			Dest: "apa",
+			EndPointId: 1,
 			Rid: int(rand.Int31()),
 		}
 

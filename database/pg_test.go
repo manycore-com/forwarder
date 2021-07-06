@@ -137,3 +137,11 @@ func TestDisableCompany(t *testing.T) {
 	err := DisableCompany(1)
 	assert.NoError(t, err, "oh no!")
 }
+
+func TestGetEndPointCfg(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	v, err := GetEndPointCfg(1)
+	assert.NoError(t, err)
+	fmt.Printf("%#v\n", v)
+
+}

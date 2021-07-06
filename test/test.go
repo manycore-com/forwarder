@@ -33,4 +33,8 @@ func SetEnvVars() {
 	os.Setenv("EMAIL_DEFAULT_FROM", os.Getenv("FORWARDER_EMAIL_DEFAULT_FROM"))
 	os.Setenv("SUPPORT_EMAIL", os.Getenv("FORWARDER_EMAIL_REPLY_TO"))
 	os.Setenv("SUPPORT_EMAIL_BCC", os.Getenv("FORWARDER_SUPPORT_EMAIL_BCC"))
+
+	os.Setenv("REDISHOST", os.Getenv("FORWARDER_REDISHOST"))
+	os.Setenv("REDISPORT", os.Getenv("FORWARDER_REDISPORT"))
+	os.Setenv("REDISAUTH", os.Getenv("FORWARDER_REDISAUTH"))
 }

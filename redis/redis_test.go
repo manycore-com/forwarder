@@ -2,110 +2,116 @@ package redis
 
 import (
 	"fmt"
-	"github.com/gomodule/redigo/redis"
+	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"testing"
 )
 
-func TestX(t *testing.T) {
+var DISPENSIBLE_KEY = "somerandomkey8764827642387462"
 
-	redisAddr := fmt.Sprintf("%s:%s",os.Getenv("REDISHOST"), os.Getenv("REDISPORT"))
+func TestGet(t *testing.T) {
+	forwarderTest.SetEnvVars()
 
-	const maxConnections = 10
-	redisPool = &redis.Pool{
-		MaxIdle: maxConnections,
-		Dial:    func() (redis.Conn, error) { return redis.Dial("tcp", redisAddr) },
-	}
+	err := Init()
+	assert.NoError(t, err)
+	defer Cleanup()
 
-	conn := redisPool.Get()
-	defer conn.Close()
-
-
-	counter, err := redis.Int(conn.Do("INCR", "visits"))
-	if err != nil {
-		fmt.Printf("Error incrementing visitor counter: %v\n", err)
-		return
-	}
-	fmt.Printf("Visitor number: %d\n", counter)
+	ba, err := Get("thiskeydoesntexist")
+	fmt.Printf("not found:  %v %v\n", ba, err)
 }
 
 func TestSadd(t *testing.T) {
-	os.Setenv("REDISHOST", os.Getenv("FORWARDER_REDISHOST"))
-	os.Setenv("REDISPORT", os.Getenv("FORWARDER_REDISPORT"))
+	forwarderTest.SetEnvVars()
 
 	err := Init()
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd("somerandomkey8764827642387462", 1)
+	_, err = SetAdd(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
 
-	Del("somerandomkey8764827642387462")
+	Del(DISPENSIBLE_KEY)
 }
 
 func TestSetMembers(t *testing.T) {
-	os.Setenv("REDISHOST", os.Getenv("FORWARDER_REDISHOST"))
-	os.Setenv("REDISPORT", os.Getenv("FORWARDER_REDISPORT"))
+	forwarderTest.SetEnvVars()
 
 	err := Init()
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd("somerandomkey8764827642387462", 1)
+	_, err = SetAdd(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
-	_, err = SetAdd("somerandomkey8764827642387462", 2)
+	_, err = SetAdd(DISPENSIBLE_KEY, 2)
 	assert.NoError(t, err)
 
-	xx, err := SetMembers("somerandomkey8764827642387462")
+	xx, err := SetMembers(DISPENSIBLE_KEY)
 	assert.NoError(t, err)
 	assert.Len(t, xx, 2)
 
-	Del("somerandomkey8764827642387462")
+	Del(DISPENSIBLE_KEY)
 }
 
 func TestSetMembersInt(t *testing.T) {
-	os.Setenv("REDISHOST", os.Getenv("FORWARDER_REDISHOST"))
-	os.Setenv("REDISPORT", os.Getenv("FORWARDER_REDISPORT"))
+	forwarderTest.SetEnvVars()
 
 	err := Init()
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd("somerandomkey8764827642387462", 1)
+	_, err = SetAdd(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
-	_, err = SetAdd("somerandomkey8764827642387462", 223456)
+	_, err = SetAdd(DISPENSIBLE_KEY, 223456)
 	assert.NoError(t, err)
 
-	xx, err := SetMembersInt("somerandomkey8764827642387462")
+	xx, err := SetMembersInt(DISPENSIBLE_KEY)
 	assert.NoError(t, err)
 	assert.Len(t, xx, 2)
 	assert.Equal(t, 1, xx[0])
 	assert.Equal(t, 223456, xx[1])
 
-	Del("somerandomkey8764827642387462")
+	Del(DISPENSIBLE_KEY)
 }
 
 func TestListLRangeInt(t *testing.T) {
-	os.Setenv("REDISHOST", os.Getenv("FORWARDER_REDISHOST"))
-	os.Setenv("REDISPORT", os.Getenv("FORWARDER_REDISPORT"))
+	forwarderTest.SetEnvVars()
 
 	err := Init()
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = ListRPush("somerandomkey8764827642387462", 7)
+	_, err = ListRPush(DISPENSIBLE_KEY, 7)
 	assert.NoError(t, err)
-	_, err = ListRPush("somerandomkey8764827642387462", 8)
+	_, err = ListRPush(DISPENSIBLE_KEY, 8)
 	assert.NoError(t, err)
-	_, err = ListRPush("somerandomkey8764827642387462", 9)
+	_, err = ListRPush(DISPENSIBLE_KEY, 9)
 	assert.NoError(t, err)
 
-	xx, err := ListLRangeInt("somerandomkey8764827642387462", 0, 1000000)
+	xx, err := ListLRangeInt(DISPENSIBLE_KEY, 0, 1000000)
 	assert.Len(t, xx, 3)
 	assert.Equal(t, 7, xx[0])
 	assert.Equal(t, 8, xx[1])
 	assert.Equal(t, 9, xx[2])
 
-	Del("somerandomkey8764827642387462")
+	Del(DISPENSIBLE_KEY)
+}
+
+func TestSetInt64(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	err := Init()
+	assert.NoError(t, err)
+	defer Cleanup()
+
+	Del(DISPENSIBLE_KEY)
+
+	err = SetInt64(DISPENSIBLE_KEY, int64(123))
+	assert.NoError(t, err, "Error")
+
+	x, err := Inc(DISPENSIBLE_KEY)
+
+	assert.NoError(t, err, "Errors")
+	assert.Equal(t, 124, x)
+
+	Del(DISPENSIBLE_KEY)
 }

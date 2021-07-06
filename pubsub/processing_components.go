@@ -16,8 +16,8 @@ type PubSubElement struct {
 	Ts            int64
 	SafeHash      string
 	Sign          string  // Sign hash where applicable
-	Dest          string  // added here in fanout.
 	Rid           int  // random integer. Rid + CompanyID + Ts will be UUID for a package.
+	EndPointId    int
 }
 
 type PubSubElementUUID struct {

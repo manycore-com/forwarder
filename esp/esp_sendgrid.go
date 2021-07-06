@@ -3,6 +3,7 @@ package esp
 import (
 	"bytes"
 	"fmt"
+	forwarderIQ "github.com/manycore-com/forwarder/individual_queues"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"io"
@@ -12,14 +13,13 @@ import (
 
 func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool) {  // bool: any point to retry
 
-	if "" == elem.Dest {
-		// This should never never happen
-		forwarderStats.AddErrorMessage(elem.CompanyID, "Missing destination URL.")
-		return fmt.Errorf("forwarder.forward.forwardMg(%s): Missing Dest url", devprod), false
+	cfg, err := forwarderIQ.GetEndPointData(elem.EndPointId)
+	if err != nil {
+		return err, false
 	}
 
 	// ok, time to forward
-	request, err := http.NewRequest("POST", elem.Dest, bytes.NewReader([]byte(elem.ESPJsonString)))
+	request, err := http.NewRequest("POST", cfg.ForwardEndpoint, bytes.NewReader([]byte(elem.ESPJsonString)))
 	if err != nil {
 		forwarderStats.AddErrorMessage(elem.CompanyID, err.Error())
 		return err, true
@@ -59,7 +59,7 @@ func ForwardSg(devprod string, elem *forwarderPubsub.PubSubElement) (error, bool
 	// TODO check that status code is in 2xx range?
 	if resp.StatusCode >= 300 || resp.StatusCode < 200 {
 		forwarderStats.AddErrorMessage(elem.CompanyID, resp.Status)
-		return fmt.Errorf("forwardMg(%s): Bad status:%s companyId:%d url:%s", devprod, resp.Status, elem.CompanyID, elem.Dest), true
+		return fmt.Errorf("forwardMg(%s): Bad status:%s companyId:%d endPointId:%d", devprod, resp.Status, elem.CompanyID, elem.EndPointId), true
 	}
 
 	return nil, false

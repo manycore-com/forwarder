@@ -16,7 +16,6 @@ func TestCalculateHashFromSecret(t *testing.T) {
 }
 
 func TestAsyncFanout(t *testing.T) {
-
 	forwarderTest.SetEnvVars()
 	os.Setenv("IN_SUBSCRIPTION_ID", "x")
 	os.Setenv("OUT_QUEUE_TOPIC_ID", os.Getenv("FORWARDER_TEST_QUEUE_1"))
@@ -54,5 +53,5 @@ func TestFanout(t *testing.T) {
 	env()
 
 	var m = forwarderPubsub.PubSubMessage{Data: []byte("")}
-	Fanout(context.Background(), m)
+	Fanout(context.Background(), m, 0)
 }

@@ -16,7 +16,7 @@ func TestForwardSg(t *testing.T) {
 			ESP: "sg",
 			ESPJsonString: "{\"apa\":1}",
 			Ts: 123,
-			Dest:"http://localhost:8000/webhook-forwarder/debug-post/",
+			EndPointId: 1,
 		}
 
 		fmt.Printf("e: %v\n", x)

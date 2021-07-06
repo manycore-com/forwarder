@@ -20,22 +20,38 @@ func AgeInSecMessage(msg *pubsub.Message) float64 {
 	return time.Now().UTC().Sub(msg.PublishTime).Seconds()
 }
 
-// CheckNbrItemsPubsub Note: The number shows by delay 0..60s
-func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) {
+// CheckNbrItemsPubsubs Note: The number shows by delay 0..60s
+func CheckNbrItemsPubsubs(projectID string, subscriptionIds []string) (map[string]int64,error) {
+	if nil == subscriptionIds || 0 == len(subscriptionIds) {
+		return nil, fmt.Errorf("forwarder.pubsub.CheckNbrItemsPubsubs() subscriptionIds array is empty")
+	}
+
 	ctx := context.Background()
 
 	// Creates a client.
 	client, err := monitoring.NewMetricClient(ctx)  // MetricServiceClient in Py
 	if err != nil {
-		return 0,err
+		return nil,err
 	}
 	defer client.Close()
+
+	var subsToCount = make(map[string]int64)
+	var subscriptionFilterString string
+	for idx, item := range subscriptionIds {
+		if 0 < idx {
+			subscriptionFilterString += " AND "
+		}
+
+		subscriptionFilterString += `resource.labels.subscription_id="` + item + `"`
+
+		subsToCount[item] = int64(0)
+	}
 
 	startTime := time.Now().UTC().Add(time.Second * -120)
 	endTime := time.Now().UTC()
 	var req *monitoringpb.ListTimeSeriesRequest = &monitoringpb.ListTimeSeriesRequest{
 		Name:   "projects/" + projectID,
-		Filter: `metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages" resource.labels.subscription_id="` + subscriptionId + `"`,
+		Filter: `metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages" AND (` + subscriptionFilterString + `)`,
 		View: monitoringpb.ListTimeSeriesRequest_FULL,
 
 		Interval: &monitoringpb.TimeInterval{
@@ -50,7 +66,6 @@ func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) 
 
 	it := client.ListTimeSeries(ctx, req)
 
-	var resultingNumber int64 = -1
 	for {
 		resp, err := it.Next()
 		if err == iterator.Done {
@@ -58,19 +73,25 @@ func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) 
 		}
 
 		if err != nil {
-			return 0, fmt.Errorf("could not read time series value: %v", err)
+			return nil, fmt.Errorf("could not read time series value: %v", err)
 		}
 
-		resultingNumber = resp.GetPoints()[len (resp.GetPoints()) - 1].Value.GetInt64Value()
-
-		break
+		var subscription = resp.GetResource().GetLabels()["subscription_id"]
+		var resultingNumber = resp.GetPoints()[len (resp.GetPoints()) - 1].Value.GetInt64Value()
+		subsToCount[subscription] = resultingNumber
 	}
 
-	if resultingNumber >= 0 {
-		return resultingNumber, nil
+	return subsToCount, nil
+}
+
+// CheckNbrItemsPubsub Note: The number shows by delay 0..60s
+func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) {
+	subsToCount, err := CheckNbrItemsPubsubs(projectID, []string{subscriptionId})
+	if nil != err {
+		return -1, err
 	}
 
-	return 0,fmt.Errorf("Failed to find time series data for %s", subscriptionId)
+	return subsToCount[subscriptionId], nil
 }
 
 func SetupClientAndTopic(projectID string, topicId string) (*context.Context, *pubsub.Client, * pubsub.Topic, error) {

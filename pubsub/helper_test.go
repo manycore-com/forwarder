@@ -44,7 +44,7 @@ func TestXX(t *testing.T) {
 
 	defer client.Close()
 
-	for i:=0; i<1000; i++ {
+	for i:=0; i<30; i++ {
 
 		err = PushJsonStringToPubsub(ctx1, nextForwardTopic, okPayload)
 		if err != nil {
@@ -83,3 +83,16 @@ func TestCheckNbrItemsPubsub(t *testing.T) {
 
 	fmt.Printf("Done\n")
 }
+
+func TestCheckNbrItemsPubsubs(t *testing.T) {
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GOOGLE_APPLICATION_CREDENTIALS"))
+	fmt.Printf("proj: %s\n", os.Getenv("FORWARDER_TEST_PROJECT_ID"))
+	fmt.Printf("mem start: %s\n", forwarderStats.GetMemUsageStr())
+
+	_, err := CheckNbrItemsPubsubs(os.Getenv("FORWARDER_TEST_PROJECT_ID"), []string{"TESTING"})
+	if err != nil {
+		fmt.Printf("Error: %v\n",err)
+		return
+	}
+}
+

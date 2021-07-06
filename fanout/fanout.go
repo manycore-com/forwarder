@@ -174,15 +174,15 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				if 0 == len(ci.ForwardUrl) {
+				if 0 == len(ci.EndPoints) {
 					ignoreCompany[elem.CompanyID] = true
 					continue
 				}
 
 				forwarderStats.AddReceivedAtH(elem.CompanyID)
 
-				for _, forwardUrl := range ci.ForwardUrl {
-					elem.Dest = forwardUrl
+				for _, endPoint := range ci.EndPoints {
+					elem.EndPointId = endPoint.EndPointId
 
 					if ! hasSetMessage[elem.CompanyID] {
 						hasSetMessage[elem.CompanyID] = true

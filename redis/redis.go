@@ -7,6 +7,12 @@ import (
 	"strconv"
 )
 
+// Keys
+//  individual_queues   FWD_IQ_GETENDPOINTDATA_#      Cached endpoint data for webhook_forwarder_poll_endpoint.id
+//  individual_queues   FWD_IQ_QS_#                   Current size of webhook_forwarder_poll_endpoint.id #'s subscription
+//  individual_queues   FWD_IQ_PS_#                   Number of events currently processing for webhook_forwarder_poll_endpoint.id
+//  individual_queues   FWD_IQ_ACTIVE_ENDPOINTS_SET   This is a set of ids of active endpoints
+
 var redisPool *redis.Pool
 
 func Init() error {
@@ -30,7 +36,21 @@ func Init() error {
 
 	redisPool = &redis.Pool{
 		MaxIdle: maxConnections,
-		Dial:    func() (redis.Conn, error) { return redis.Dial("tcp", redisAddr) },
+		Dial:    func() (redis.Conn, error) {
+			c, err:= redis.Dial("tcp", redisAddr)
+			if err != nil {
+				return nil, err
+			}
+
+			if "" != os.Getenv("REDISAUTH") {
+				if _, err := c.Do("AUTH", os.Getenv("REDISAUTH")); err != nil {
+					c.Close()
+					return nil, err
+				}
+			}
+
+			return c, nil
+		},
 	}
 
 	return nil
@@ -78,10 +98,18 @@ func Get(key string) ([]byte, error) {
 	conn := redisPool.Get()
 	defer conn.Close()
 
-	var data []byte
-	data, err := redis.Bytes(conn.Do("GET", key))
+	getResult, err := conn.Do("GET", key)
+	if nil != err {
+		return nil, fmt.Errorf("forwarder.redis.Get() error getting key=%s: %v", key, err)
+	}
+
+	if getResult == nil {
+		return nil, nil
+	}
+
+	data, err := redis.Bytes(getResult, err)
 	if err != nil {
-		return nil, fmt.Errorf("error getting key %s: %v", key, err)
+		return nil, fmt.Errorf("forwarder.redis.Get() error parse bytes key=%s: %v", key, err)
 	}
 
 	return data, err
@@ -102,6 +130,10 @@ func Set(key string, value []byte) error {
 	}
 
 	return nil
+}
+
+func SetInt64(key string, value int64) error {
+	return Set(key, []byte(strconv.FormatInt(value, 10)))
 }
 
 func Exists(key string) (bool, error) {
@@ -128,7 +160,7 @@ func Inc(key string) (int, error) {
 	conn := redisPool.Get()
 	defer conn.Close()
 
-	counter, err := redis.Int(conn.Do("INCR", "visits"))
+	counter, err := redis.Int(conn.Do("INCR", key))
 	if err != nil {
 		return -1, err
 	}

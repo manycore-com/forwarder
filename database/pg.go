@@ -54,15 +54,17 @@ func GetDbConnection() (*pgx.Conn, error) {
 	return conn, nil
 }
 
-type CompanyInfo struct {
-	ForwardUrl    []string
-	Secret        string
-	WarnedAt      pq.NullTime  // Can't Scan() null into normal *time.Time
-	DisabledAt    pq.NullTime
+type EndPointStruct struct {
+	EndPointId          int
+	ForwardEndPoint     string
+	MaxConcurrentFwd    int
 }
 
-type OneJsonRow struct {
-	Dest          string `json:"dest"`
+type CompanyInfo struct {
+	EndPoints           []EndPointStruct
+	Secret              string
+	WarnedAt            pq.NullTime  // Can't Scan() null into normal *time.Time
+	DisabledAt          pq.NullTime
 }
 
 var companyInfoMap = make(map[int]*CompanyInfo)
@@ -133,7 +135,9 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                 select array_to_json(array_agg(row_to_json(t)))
                 from (
                     select 
-                        forward_endpoint as dest
+                        id as EndPointId,
+                        forward_endpoint as ForwardEndPoint,
+                        coalesce(max_concurrent_fwd,1000000) as "MaxConcurrentFwd"
                     from
                         webhook_forwarder_poll_endpoint ipe
                     where
@@ -164,7 +168,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 		companyInfoMap[companyId] = &ci
 		theElem = &ci
 
-		var jsonRows []OneJsonRow
+		var jsonRows []EndPointStruct
 		if "" != jsonStr && "[]" != jsonStr {
 			err = json.Unmarshal([]byte(jsonStr), &jsonRows)
 			if err != nil {
@@ -172,13 +176,50 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 				return nil, err
 			}
 
-			for _, s := range jsonRows {
-				ci.ForwardUrl = append(ci.ForwardUrl, s.Dest)
-			}
+			ci.EndPoints = jsonRows
 		}
 	}
 
 	return theElem, nil
+}
+
+type EndPointCfgStruct struct {
+	MaxConcurrentFwd    int
+	ForwardEndpoint     string
+}
+
+func GetEndPointCfg(endPointId int) (*EndPointCfgStruct, error) {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return nil, err
+	}
+
+	var maxConcurrentFwd int
+	var forwardEndpoint string
+
+	q := `
+    select
+        coalesce(max_concurrent_fwd, 1000000),
+	    forward_endpoint
+    from
+        webhook_forwarder_poll_endpoint wfpe
+    where
+        wfpe.id = $1
+    `
+	err = dbconn.QueryRow(context.Background(), q, endPointId).Scan(&maxConcurrentFwd, &forwardEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("forwarder.database.GetEndPointCfg() Error:%v", err)
+	}
+
+	var val = EndPointCfgStruct{
+		MaxConcurrentFwd: maxConcurrentFwd,
+		ForwardEndpoint: forwardEndpoint,
+	}
+
+	return &val, nil
 }
 
 // UpdateUsage returns id, hourNow, lastHourWithErrors, lastHourWithExamples, err
