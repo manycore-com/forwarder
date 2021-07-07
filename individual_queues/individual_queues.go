@@ -66,6 +66,11 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 		return cfg, fmt.Errorf("forwarder.individual_queues.GetEndPointData() redis failed to cache cfg: %v", err)
 	}
 
+	_, err = forwarderRedis.Expire(key, 10 * 60)
+	if nil != err {
+		fmt.Printf("forwarder.IQ.GetEndPointData(): Failed to set TTL for %s: %v", key, err)
+	}
+
 	return cfg, nil
 }
 

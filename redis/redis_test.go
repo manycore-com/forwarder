@@ -5,6 +5,7 @@ import (
 	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 var DISPENSIBLE_KEY = "somerandomkey8764827642387462"
@@ -114,4 +115,26 @@ func TestSetInt64(t *testing.T) {
 	assert.Equal(t, 124, x)
 
 	Del(DISPENSIBLE_KEY)
+}
+
+func TestExpire(t *testing.T) {
+	forwarderTest.SetEnvVars()
+
+	err := Init()
+	assert.NoError(t, err)
+	defer Cleanup()
+
+	Del(DISPENSIBLE_KEY)
+	Inc(DISPENSIBLE_KEY)
+	x, err := Expire(DISPENSIBLE_KEY, 2)
+	assert.NoError(t, err, "Error")
+	assert.Equal(t, 1, x)
+	x, err = Inc(DISPENSIBLE_KEY)
+	assert.NoError(t, err, "Error")
+	assert.Equal(t, 2, x)
+
+	time.Sleep(time.Second * 3)
+	x, err = GetInt(DISPENSIBLE_KEY)
+	assert.NoError(t, err, "Error")
+	assert.Equal(t, 0, x)
 }

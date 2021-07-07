@@ -7,6 +7,9 @@ import (
 	"strconv"
 )
 
+// If you use Redis on GCP, remember to setup a vpc connector
+//   https://medium.com/google-cloud/using-memorystore-with-cloud-run-82e3d61df016
+
 // Keys
 //  individual_queues   FWD_IQ_GETENDPOINTDATA_#      Cached endpoint data for webhook_forwarder_poll_endpoint.id
 //  individual_queues   FWD_IQ_QS_#                   Current size of webhook_forwarder_poll_endpoint.id #'s subscription
@@ -119,6 +122,27 @@ func Get(key string) ([]byte, error) {
 	return data, err
 }
 
+func GetInt(key string) (int, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	getResult, err := conn.Do("GET", key)
+	if nil != err {
+		return 0, fmt.Errorf("forwarder.redis.Get() error getting key=%s: %v", key, err)
+	}
+
+	if getResult == nil {
+		return 0, nil
+	}
+
+	data, err := redis.Int(getResult, err)
+	if err != nil {
+		return 0, fmt.Errorf("forwarder.redis.Get() error parse bytes key=%s: %v", key, err)
+	}
+
+	return data, err
+}
+
 func Set(key string, value []byte) error {
 	conn := redisPool.Get()
 	defer conn.Close()
@@ -134,6 +158,18 @@ func Set(key string, value []byte) error {
 	}
 
 	return nil
+}
+
+func Expire(key string, ttl int) (int, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	counter, err := redis.Int(conn.Do("EXPIRE", key, ttl))
+	if err != nil {
+		return -1, err
+	}
+
+	return counter, nil
 }
 
 func SetInt64(key string, value int64) error {
