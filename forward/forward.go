@@ -209,7 +209,7 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 					// It's time to go to the next queue
 					err = forwarderPubsub.PushElemToPubsub(ctx2, nextQueueTopic, elem)
 					if err != nil {
-						forwarderStats.AddLost(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v (next queue)\n", devprod, idx, nextQueueTopicId, err)
 						continue
 					}
@@ -218,7 +218,7 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 				} else {
 					err = forwarderPubsub.PushElemToPubsub(ctx1, nextForwardTopic, elem)
 					if err != nil {
-						forwarderStats.AddLost(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
 						continue
 					}
@@ -258,7 +258,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 
 				if elem.Ts < dieIfTsLt {
 					fmt.Printf("forwarder.forward.asyncForward(%s) Package died of old age\n", devprod)
-					forwarderStats.AddTimeout(elem.CompanyID)
+					forwarderStats.AddTimeout(elem.CompanyID, elem.EndPointId)
 					continue
 				}
 
@@ -271,14 +271,14 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					err, anyPointToRetry = forwarderEsp.ForwardSg(devprod, elem)
 				} else {
 					fmt.Printf("forwarder.forward.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
-					forwarderStats.AddLost(elem.CompanyID)
-					forwarderStats.AddErrorMessage(elem.CompanyID, "Only sendgrid is supported for now. esp=" + elem.ESP)
+					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
+					forwarderStats.AddErrorMessage(elem.CompanyID, elem.EndPointId, "Only sendgrid is supported for now. esp=" + elem.ESP)
 					continue
 				}
 
 				if nil == err {
-					forwarderStats.AddForwardedAtH(elem.CompanyID)
-					forwarderStats.AddAgeWhenForward(elem.CompanyID, elem.Ts)
+					forwarderStats.AddForwardedAtH(elem.CompanyID, elem.EndPointId)
+					forwarderStats.AddAgeWhenForward(elem.CompanyID, elem.EndPointId, elem.Ts)
 				} else {
 
 					fmt.Printf("forwarder.forward.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
@@ -287,7 +287,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 						// Stats calculated by asyncFailureProcessing
 						*pubsubFailureChan <- elem
 					} else {
-						forwarderStats.AddLost(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 					}
 				}
 			}

@@ -49,19 +49,21 @@ func TestCheckDb(t *testing.T) {
 }
 
 func TestWriteStatsToDbV2(t *testing.T) {
+	endpointId := 2
+
 	forwarderTest.SetEnvVars()
 
-	forwarderStats.AddForwardedAtH(1)
-	forwarderStats.AddErrorMessage(1,"klaskatt2")
-	forwarderStats.AddExample(1, "some example")
-	forwarderStats.AddLost(1)
-	forwarderStats.AddLost(1)
-	forwarderStats.AddLost(1)
-	forwarderStats.AddTimeout(1)
-	forwarderStats.AddTimeout(1)
+	forwarderStats.AddForwardedAtH(1, endpointId)
+	forwarderStats.AddErrorMessage(1,endpointId, "klaskatt3")
+	forwarderStats.AddExample(1, endpointId, "some example3")
+	forwarderStats.AddLost(1, endpointId)
+	forwarderStats.AddLost(1, endpointId)
+	forwarderStats.AddLost(1, endpointId)
+	forwarderStats.AddTimeout(1, endpointId)
+	forwarderStats.AddTimeout(1, endpointId)
 
 	var now = time.Now().Unix()
-	forwarderStats.AddAgeWhenForward(1, now - int64(60*3600))
+	forwarderStats.AddAgeWhenForward(1, endpointId, now - int64(60*3600))
 
 	WriteStatsToDb()
 }
@@ -143,5 +145,4 @@ func TestGetEndPointCfg(t *testing.T) {
 	v, err := GetEndPointCfg(1)
 	assert.NoError(t, err)
 	fmt.Printf("%#v\n", v)
-
 }

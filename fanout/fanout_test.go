@@ -39,7 +39,7 @@ func TestAsyncFanout(t *testing.T) {
       "sg_message_id":"sg_message_id"
     }
 ]`
-	var x = forwarderPubsub.PubSubElement{CompanyID: 1, ESP: "sg", ESPJsonString: okPayload, Ts: time.Now().Unix(), SafeHash: "09e0190b36476d1a960669bdb1dd0111", Sign: "", Dest: ""}
+	var x = forwarderPubsub.PubSubElement{CompanyID: 1, ESP: "sg", ESPJsonString: okPayload, Ts: time.Now().Unix(), SafeHash: "09e0190b36476d1a960669bdb1dd0111", Sign: ""}
 	pubsubForwardChan <- &x
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)

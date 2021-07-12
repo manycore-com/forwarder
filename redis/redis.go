@@ -70,6 +70,14 @@ func Cleanup() {
 	}
 }
 
+func stringArrayAsInterfaceArray(arr []string) []interface{} {
+	s := make([]interface{}, len(arr))
+	for i, v := range arr {
+		s[i] = v
+	}
+	return s
+}
+
 func valueAsIntArray(interfaceArray []interface{}) ([]int, error) {
 	var intArr []int
 	for _, item := range interfaceArray {
@@ -143,6 +151,36 @@ func GetInt(key string) (int, error) {
 	return data, err
 }
 
+func MGetInt(keys []string) (map[string]int, error) {
+	keysAsInterface := stringArrayAsInterfaceArray(keys)
+
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	mgetResult, err := conn.Do("MGET", keysAsInterface...)
+	if nil != err {
+		return nil, err
+	}
+
+	listSlice, ok := mgetResult.([]interface{})
+	if ! ok {
+		return nil, fmt.Errorf("forwarder.redis.MGetInt() result is not an interface array")
+	}
+
+	var result = make(map[string]int)
+	for offs, key := range keys {
+		var readval int
+
+		if nil != listSlice[offs] {
+			readval, _ = redis.Int(listSlice[offs], nil)
+		}
+
+		result[key] = readval
+	}
+
+	return result, nil
+}
+
 func Set(key string, value []byte) error {
 	conn := redisPool.Get()
 	defer conn.Close()
@@ -196,11 +234,47 @@ func Del(key string) error {
 	return err
 }
 
-func Inc(key string) (int, error) {
+func Incr(key string) (int, error) {
 	conn := redisPool.Get()
 	defer conn.Close()
 
 	counter, err := redis.Int(conn.Do("INCR", key))
+	if err != nil {
+		return -1, err
+	}
+
+	return counter, nil
+}
+
+func IncrBy(key string, by int) (int, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	counter, err := redis.Int(conn.Do("INCRBY", key, by))
+	if err != nil {
+		return -1, err
+	}
+
+	return counter, nil
+}
+
+func Decr(key string) (int, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	counter, err := redis.Int(conn.Do("DECR", key))
+	if err != nil {
+		return -1, err
+	}
+
+	return counter, nil
+}
+
+func DecrBy(key string, by int) (int, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	counter, err := redis.Int(conn.Do("DECRBY", key, by))
 	if err != nil {
 		return -1, err
 	}

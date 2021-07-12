@@ -2,6 +2,7 @@ package pause
 
 import (
 	"fmt"
+	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
@@ -98,8 +99,8 @@ func TestMoveAndCount(t *testing.T) {
 
 	apa := MoveAndCount([][]string{ []string{"TESTING", "TESTING2"}  }, false)
 	assert.False(t, apa)
-	for companyId, count := range CompanyCountMap {
-		fmt.Printf("company: %4d, count: %4d\n", companyId, count)
+	for endpointId, count := range EndpointCountMap {
+		fmt.Printf("endpoint: %4d, count: %4d\n", endpointId, count)
 	}
 
 }
@@ -114,8 +115,20 @@ func TestMoveAndCountReverse(t *testing.T) {
 
 	apa := MoveAndCount([][]string{ []string{"TESTING", "TESTING2"}  }, true)
 	assert.False(t, apa)
-	for companyId, count := range CompanyCountMap {
-		fmt.Printf("company: %4d, count: %4d\n", companyId, count)
+	for endpointId, count := range EndpointCountMap {
+		fmt.Printf("endpoint: %4d, count: %4d\n", endpointId, count)
 	}
 
+}
+
+func TestCountAndCheckpoint2(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	companiesAndEndpoints, err := forwarderDb.GetLatestActiveEndpoints()
+	assert.NoError(t, err, "Dang it")
+
+	for _, companiesAndEndpoint := range companiesAndEndpoints {
+		fmt.Printf("forwarder.pause.CountAndCheckpoint2() Writing active companies with nothing on resend queue. endpoint:%d\n", companiesAndEndpoint.EndPointId)
+		err := forwarderDb.WriteQueueCheckpoint(companiesAndEndpoint.EndPointId, 0)
+		assert.NoError(t, err, "Dang it")
+	}
 }

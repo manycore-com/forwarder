@@ -12,10 +12,27 @@ import (
 
 var endpointIdToCfg = make(map[int]*forwarderDb.EndPointCfgStruct)
 
+var touchedForwardId = make(map[int]bool)
+
 var iqMutex sync.Mutex
 
 func Cleanup() {
 	endpointIdToCfg = make(map[int]*forwarderDb.EndPointCfgStruct)
+	touchedForwardId = make(map[int]bool)
+}
+
+func TouchForwardId(forwardId int) error {
+	if touchedForwardId[forwardId] {
+		return nil
+	}
+
+	_, err := forwarderRedis.SetAdd("FWD_IQ_ACTIVE_ENDPOINTS_SET", forwardId)
+	if nil != err {
+		fmt.Printf("forwarder.IQ.TouchForwardId() error: %v\n", err)
+		return err
+	}
+
+	return nil
 }
 
 func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {

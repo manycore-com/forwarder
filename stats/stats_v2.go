@@ -16,8 +16,10 @@ type Stats struct {
 	ErrorMessage   string
 	NbrLost        int
 	NbrTimeout     int // mutual exclusive with NbrLost
+	CompanyId      int // need this as map key is endpoint id
 }
 
+// StatsMap 2021-07-12 is now endpont->struct, not company->struct
 var StatsMap = make(map[int]*Stats)
 
 var statsMutex sync.Mutex
@@ -38,88 +40,89 @@ func epochThenToOffs(epochThen int64) int {
 	return offset
 }
 
-func touchElem(companyId int) *Stats {
+func touchElem(companyId int, endpointId int) *Stats {
 
-	theElem, elementExists := StatsMap[companyId]
+	theElem, elementExists := StatsMap[endpointId]
 	if ! elementExists {
 		theElem = &Stats{}
-		StatsMap[companyId] = theElem
+		theElem.CompanyId = companyId
+		StatsMap[endpointId] = theElem
 	}
 
 	return theElem
 }
 
-func AddReceivedAtH(companyId int) int {
+func AddReceivedAtH(companyId int, endpointId int) int {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
 	hour := time.Now().UTC().Hour()
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.ReceivedAtH[hour] += 1
 	return theElem.ReceivedAtH[hour]
 }
 
-func AddEnterQueueAtH(companyId int) int {
+func AddEnterQueueAtH(companyId int, endpointId int) int {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
 	hour := time.Now().UTC().Hour()
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.EnterQueueAtH[hour] += 1
 	return theElem.EnterQueueAtH[hour]
 }
 
-func AddAgeWhenForward(companyId int, ts int64) int {
+func AddAgeWhenForward(companyId int, endpointId int, ts int64) int {
 	offs := TsToTruncOffs(ts)
 
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.AgeWhenForward[offs] += 1
 	return theElem.AgeWhenForward[offs]
 }
 
-func AddForwardedAtH(companyId int) int {
+func AddForwardedAtH(companyId int, endpointId int) int {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
 	hour := time.Now().UTC().Hour()
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.ForwardedAtH[hour] += 1
 	return theElem.ForwardedAtH[hour]
 }
 
-func AddExample(companyId int, example string) {
+func AddExample(companyId int, endpointId int, example string) {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.Example = example
 }
 
-func AddErrorMessage(companyId int, errorMessage string) {
+func AddErrorMessage(companyId int, endpointId int, errorMessage string) {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.ErrorMessage = errorMessage
 }
 
-func AddLost(companyId int) int {
+func AddLost(companyId int, endpointId int) int {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.NbrLost += 1
 	return theElem.NbrLost
 }
 
-func AddTimeout(companyId int) int {
+func AddTimeout(companyId int, endpointId int) int {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
 
-	theElem := touchElem(companyId)
+	theElem := touchElem(companyId, endpointId)
 	theElem.NbrTimeout += 1
 	return theElem.NbrTimeout
 }

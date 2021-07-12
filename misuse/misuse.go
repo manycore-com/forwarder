@@ -40,6 +40,7 @@ We've disabled forwarding.
 `, queueLevel, cutOffLevel, emailSignature)
 }
 
+// ProcessMisuseElem TODO do an iteration, added EndpointId to CompanyQueueSize
 func ProcessMisuseElem(elem *forwarderDb.CompanyQueueSize, warningLevel int, cutOffLevel int, warningSubject string, disableSubject string, emailSignature string, supportEmail string, bccList []string) error {
 	var err error
 

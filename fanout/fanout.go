@@ -170,7 +170,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 
 				if hashHead != elem.SafeHash {
 					fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
-					forwarderStats.AddLost(elem.CompanyID)
+					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 					continue
 				}
 
@@ -179,7 +179,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				forwarderStats.AddReceivedAtH(elem.CompanyID)
+				forwarderStats.AddReceivedAtH(elem.CompanyID, elem.EndPointId)
 
 				for _, endPoint := range ci.EndPoints {
 					elem.EndPointId = endPoint.EndPointId
@@ -188,7 +188,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						hasSetMessage[elem.CompanyID] = true
 						payload, err := json.Marshal(elem)
 						if nil == err {
-							forwarderStats.AddExample(elem.CompanyID, string(payload))
+							forwarderStats.AddExample(elem.CompanyID, elem.EndPointId, string(payload))
 						} else {
 							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
 						}
@@ -197,10 +197,10 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					err = forwarderPubsub.PushElemToPubsub(ctx, outQueueTopic, elem)
 					if err != nil {
 						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
-						forwarderStats.AddLost(elem.CompanyID)
+						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 						continue
 					} else {
-						forwarderStats.AddEnterQueueAtH(elem.CompanyID)
+						forwarderStats.AddEnterQueueAtH(elem.CompanyID, elem.EndPointId)
 					}
 				}
 			}

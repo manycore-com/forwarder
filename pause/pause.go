@@ -168,10 +168,10 @@ func WriteBackMessages(nbrWriteBackWorkers int, writeBackChan *chan *forwarderPu
 	}
 }
 
-var CompanyCountMap map[int]int
+var EndpointCountMap map[int]int
 
 func MoveAndCount(subscriptionPairs [][]string, reverse bool) bool {
-	CompanyCountMap = make(map[int]int)
+	EndpointCountMap = make(map[int]int)
 
 	var nbrWriteBackWorkers int = 16
 	var seriousError bool = false
@@ -275,10 +275,10 @@ func MoveAndCount(subscriptionPairs [][]string, reverse bool) bool {
 					mu.Lock()
 
 					// Is there an item?
-					if val, ok := CompanyCountMap[elem.CompanyID]; ok {
-						CompanyCountMap[elem.CompanyID] = val + 1
+					if val, ok := EndpointCountMap[elem.EndPointId]; ok {
+						EndpointCountMap[elem.EndPointId] = val + 1
 					} else {
-						CompanyCountMap[elem.CompanyID] = 1
+						EndpointCountMap[elem.EndPointId] = 1
 					}
 
 					lastAtMs = time.Now().UnixNano() / 1000000
@@ -331,25 +331,25 @@ func CountAndCheckpoint2(subscriptionPairs [][]string, jobNames []string) error 
 	var mapOfProcessed = make(map[int]bool)
 
 	// Now we know that CompanyCountMap is initialized correctly
-	for companyId, queueSize := range CompanyCountMap {
-		mapOfProcessed[companyId] = true
-		err := forwarderDb.WriteQueueCheckpoint(companyId, queueSize)
+	for endpointId, queueSize := range EndpointCountMap {
+		mapOfProcessed[endpointId] = true
+		err := forwarderDb.WriteQueueCheckpoint(endpointId, queueSize)
 		if nil != err {
-			fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update cid:%d err:%v\n", companyId, err)
+			fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update endpoint:%d err:%v\n", endpointId, err)
 			return err
 		}
 	}
 
 	// We want to take the companies that were active lately but had no items in the queue now, and write an empty
 	// checkpoint for them
-	companies, err := forwarderDb.GetLatestActiveCompanies()
+	companiesAndEndpoints, err := forwarderDb.GetLatestActiveEndpoints()
 	if nil == err {
-		for _, companyId := range companies {
-			fmt.Printf("forwarder.pause.CountAndCheckpoint2() Writing active companies with nothing on resend queue: %d\n", companyId)
-			if ! mapOfProcessed[companyId] {
-				err := forwarderDb.WriteQueueCheckpoint(companyId, 0)
+		for _, companiesAndEndpoint := range companiesAndEndpoints {
+			fmt.Printf("forwarder.pause.CountAndCheckpoint2() Writing active companies with nothing on resend queue. endpoint:%d\n", companiesAndEndpoint.EndPointId)
+			if ! mapOfProcessed[companiesAndEndpoint.EndPointId] {
+				err := forwarderDb.WriteQueueCheckpoint(companiesAndEndpoint.EndPointId, 0)
 				if nil != err {
-					fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update (2) cid:%d err:%v\n", companyId, err)
+					fmt.Printf("forwarder.pause.CountAndCheckpoint2(): Failed to update (2) endpoint:%d err:%v\n", companiesAndEndpoint.EndPointId, err)
 					return err
 				}
 

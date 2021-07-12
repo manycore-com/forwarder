@@ -223,7 +223,7 @@ func GetEndPointCfg(endPointId int) (*EndPointCfgStruct, error) {
 }
 
 // UpdateUsage returns id, hourNow, lastHourWithErrors, lastHourWithExamples, err
-func UpdateUsage(companyId int, stats *forwarderStats.Stats) (int, int, int, int, error) {
+func UpdateUsage(endpointId int, stats *forwarderStats.Stats) (int, int, int, int, error) {
 
 	dbUsageMutex.Lock()
 	defer dbUsageMutex.Unlock()
@@ -248,7 +248,7 @@ func UpdateUsage(companyId int, stats *forwarderStats.Stats) (int, int, int, int
 
 	// First we try a normal update, and if that fails we do an upsert.
 	q := `
-UPDATE webhook_forwarder_daily_forward_stats_v2 as o
+UPDATE webhook_forwarder_daily_forward_stats_v3 as o
 SET 
     rec_h00 = o.rec_h00 + $1,  rec_h01 = o.rec_h01 + $2,  rec_h02 = o.rec_h02 + $3,  rec_h03 = o.rec_h03 + $4,
     rec_h04 = o.rec_h04 + $5,  rec_h05 = o.rec_h05 + $6,  rec_h06 = o.rec_h06 + $7,  rec_h07 = o.rec_h07 + $8,
@@ -281,8 +281,9 @@ SET
     total_lost_messages = o.total_lost_messages + $97,
     total_timeout_messages = o.total_timeout_messages + $98
 where
-    company_id = $99 AND
-    created_at = $100
+    endpoint_id = $99 AND
+    company_id = $100 AND
+    created_at = $101
 returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples, id
 `
 	var circularPointer0to3 int
@@ -300,18 +301,19 @@ returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples,
 		e[0],  e[1],  e[2],  e[3],  e[4],  e[5],  e[6],  e[7],  e[8],  e[9],  e[10], e[11],
 		e[12], e[13], e[14], e[15], e[16], e[17], e[18], e[19], e[20], e[21], e[22], e[23],
 		stats.NbrLost, stats.NbrTimeout,
-		companyId, day).Scan(&circularPointer0to3, &lastHourWithErrors, &lastHourWithExamples, &id)
+		endpointId, stats.CompanyId, day).Scan(&circularPointer0to3, &lastHourWithErrors, &lastHourWithExamples, &id)
 
 	if nil != errUpdate {
 		fmt.Printf("forwarder.forwardDb.UpdateUsage() Failed to update, will try upsert: %v\n", errUpdate)
 
 		q = `
-INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
+INSERT INTO webhook_forwarder_daily_forward_stats_v3 as o (
+    endpoint_id,
     company_id,
     created_at, 
     rec_h00, rec_h01, rec_h02, rec_h03, rec_h04, rec_h05, rec_h06, rec_h07, rec_h08, rec_h09, rec_h10, rec_h11,
     rec_h12, rec_h13, rec_h14, rec_h15, rec_h16, rec_h17, rec_h18, rec_h19, rec_h20, rec_h21, rec_h22, rec_h23,
-    age_h00, age_h01, age_h02, age_h03, age_h04, age_h05, age_h06, age_h07, age_h08, age_h09, age_h10, age_h11,
+    age_h00, age_h01, age_h02, age_h03, age_h04, age_h05, age_h06, age_h07, age_h08, age_h09, age_h10, age_h11,  -- note stepping
     age_h12, age_h16, age_h20, age_h24, age_h28, age_h32, age_h36, age_h42, age_h48, age_h54, age_h60, age_h66,
     fwd_h00, fwd_h01, fwd_h02, fwd_h03, fwd_h04, fwd_h05, fwd_h06, fwd_h07, fwd_h08, fwd_h09, fwd_h10, fwd_h11,
     fwd_h12, fwd_h13, fwd_h14, fwd_h15, fwd_h16, fwd_h17, fwd_h18, fwd_h19, fwd_h20, fwd_h21, fwd_h22, fwd_h23,
@@ -327,53 +329,54 @@ INSERT INTO webhook_forwarder_daily_forward_stats_v2 as o (
 ) values (
     $1,
     $2,
-    $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
-    $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-    $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74,
-    $75, $76, $77, $78, $79, $80, $81, $82, $83, $84, $85, $86, $87, $88, $89, $90, $91, $92, $93, $94, $95, $96, $97, $98,
-    $99,
-    -1,
-    -1,
+    $3,
+    $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+    $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51,
+    $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74, $75,
+    $76, $77, $78, $79, $80, $81, $82, $83, $84, $85, $86, $87, $88, $89, $90, $91, $92, $93, $94, $95, $96, $97, $98, $99,
     $100,
+    -1,
+    -1,
     $101,
+    $102,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 )
-ON CONFLICT (company_id, created_at) DO UPDATE 
+ON CONFLICT (endpoint_id, company_id, created_at) DO UPDATE 
 SET 
-    rec_h00 = o.rec_h00 + $102, rec_h01 = o.rec_h01 + $103, rec_h02 = o.rec_h02 + $104, rec_h03 = o.rec_h03 + $105,
-    rec_h04 = o.rec_h04 + $106, rec_h05 = o.rec_h05 + $107, rec_h06 = o.rec_h06 + $108, rec_h07 = o.rec_h07 + $109,
-    rec_h08 = o.rec_h08 + $110, rec_h09 = o.rec_h09 + $111, rec_h10 = o.rec_h10 + $112, rec_h11 = o.rec_h11 + $113,
-    rec_h12 = o.rec_h12 + $114, rec_h13 = o.rec_h13 + $115, rec_h14 = o.rec_h14 + $116, rec_h15 = o.rec_h15 + $117,
-    rec_h16 = o.rec_h16 + $118, rec_h17 = o.rec_h17 + $119, rec_h18 = o.rec_h18 + $120, rec_h19 = o.rec_h19 + $121,
-    rec_h20 = o.rec_h20 + $122, rec_h21 = o.rec_h21 + $123, rec_h22 = o.rec_h22 + $124, rec_h23 = o.rec_h23 + $125, 
+    rec_h00 = o.rec_h00 + $103, rec_h01 = o.rec_h01 + $104, rec_h02 = o.rec_h02 + $105, rec_h03 = o.rec_h03 + $106,
+    rec_h04 = o.rec_h04 + $107, rec_h05 = o.rec_h05 + $108, rec_h06 = o.rec_h06 + $109, rec_h07 = o.rec_h07 + $110,
+    rec_h08 = o.rec_h08 + $111, rec_h09 = o.rec_h09 + $112, rec_h10 = o.rec_h10 + $113, rec_h11 = o.rec_h11 + $114,
+    rec_h12 = o.rec_h12 + $115, rec_h13 = o.rec_h13 + $116, rec_h14 = o.rec_h14 + $117, rec_h15 = o.rec_h15 + $118,
+    rec_h16 = o.rec_h16 + $119, rec_h17 = o.rec_h17 + $120, rec_h18 = o.rec_h18 + $121, rec_h19 = o.rec_h19 + $122,
+    rec_h20 = o.rec_h20 + $123, rec_h21 = o.rec_h21 + $124, rec_h22 = o.rec_h22 + $125, rec_h23 = o.rec_h23 + $126, 
 
-    age_h00 = coalesce(o.age_h00,0) + $126, age_h01 = coalesce(o.age_h01,0) + $127, age_h02 = coalesce(o.age_h02,0) + $128, age_h03 = coalesce(o.age_h03,0) + $129,
-    age_h04 = coalesce(o.age_h04,0) + $130, age_h05 = coalesce(o.age_h05,0) + $131, age_h06 = coalesce(o.age_h06,0) + $132, age_h07 = coalesce(o.age_h07,0) + $133,
-    age_h08 = coalesce(o.age_h08,0) + $134, age_h09 = coalesce(o.age_h09,0) + $135, age_h10 = coalesce(o.age_h10,0) + $136, age_h11 = coalesce(o.age_h11,0) + $137,
-    age_h12 = coalesce(o.age_h12,0) + $138, age_h16 = coalesce(o.age_h16,0) + $139, age_h20 = coalesce(o.age_h20,0) + $140, age_h24 = coalesce(o.age_h24,0) + $141,
-    age_h28 = coalesce(o.age_h28,0) + $142, age_h32 = coalesce(o.age_h32,0) + $143, age_h36 = coalesce(o.age_h36,0) + $144, age_h42 = coalesce(o.age_h42,0) + $145,
-    age_h48 = coalesce(o.age_h48,0) + $146, age_h54 = coalesce(o.age_h54,0) + $147, age_h60 = coalesce(o.age_h60,0) + $148, age_h66 = coalesce(o.age_h66,0) + $149, 
+    age_h00 = o.age_h00 + $127, age_h01 = o.age_h01 + $128, age_h02 = o.age_h02 + $129, age_h03 = o.age_h03 + $130,  -- note stepping
+    age_h04 = o.age_h04 + $131, age_h05 = o.age_h05 + $132, age_h06 = o.age_h06 + $133, age_h07 = o.age_h07 + $134,
+    age_h08 = o.age_h08 + $135, age_h09 = o.age_h09 + $136, age_h10 = o.age_h10 + $137, age_h11 = o.age_h11 + $138,
+    age_h12 = o.age_h12 + $139, age_h16 = o.age_h16 + $140, age_h20 = o.age_h20 + $141, age_h24 = o.age_h24 + $142,
+    age_h28 = o.age_h28 + $143, age_h32 = o.age_h32 + $144, age_h36 = o.age_h36 + $145, age_h42 = o.age_h42 + $146,
+    age_h48 = o.age_h48 + $147, age_h54 = o.age_h54 + $148, age_h60 = o.age_h60 + $149, age_h66 = o.age_h66 + $150, 
 
-    fwd_h00 = o.fwd_h00 + $150, fwd_h01 = o.fwd_h01 + $151, fwd_h02 = o.fwd_h02 + $152, fwd_h03 = o.fwd_h03 + $153,
-    fwd_h04 = o.fwd_h04 + $154, fwd_h05 = o.fwd_h05 + $155, fwd_h06 = o.fwd_h06 + $156, fwd_h07 = o.fwd_h07 + $157,
-    fwd_h08 = o.fwd_h08 + $158, fwd_h09 = o.fwd_h09 + $159, fwd_h10 = o.fwd_h10 + $160, fwd_h11 = o.fwd_h11 + $161,
-    fwd_h12 = o.fwd_h12 + $162, fwd_h13 = o.fwd_h13 + $163, fwd_h14 = o.fwd_h14 + $164, fwd_h15 = o.fwd_h15 + $165,
-    fwd_h16 = o.fwd_h16 + $166, fwd_h17 = o.fwd_h17 + $167, fwd_h18 = o.fwd_h18 + $168, fwd_h19 = o.fwd_h19 + $169,
-    fwd_h20 = o.fwd_h20 + $170, fwd_h21 = o.fwd_h21 + $171, fwd_h22 = o.fwd_h22 + $172, fwd_h23 = o.fwd_h23 + $173, 
+    fwd_h00 = o.fwd_h00 + $151, fwd_h01 = o.fwd_h01 + $152, fwd_h02 = o.fwd_h02 + $153, fwd_h03 = o.fwd_h03 + $154,
+    fwd_h04 = o.fwd_h04 + $155, fwd_h05 = o.fwd_h05 + $156, fwd_h06 = o.fwd_h06 + $157, fwd_h07 = o.fwd_h07 + $158,
+    fwd_h08 = o.fwd_h08 + $159, fwd_h09 = o.fwd_h09 + $160, fwd_h10 = o.fwd_h10 + $161, fwd_h11 = o.fwd_h11 + $162,
+    fwd_h12 = o.fwd_h12 + $163, fwd_h13 = o.fwd_h13 + $164, fwd_h14 = o.fwd_h14 + $165, fwd_h15 = o.fwd_h15 + $166,
+    fwd_h16 = o.fwd_h16 + $167, fwd_h17 = o.fwd_h17 + $168, fwd_h18 = o.fwd_h18 + $169, fwd_h19 = o.fwd_h19 + $170,
+    fwd_h20 = o.fwd_h20 + $171, fwd_h21 = o.fwd_h21 + $172, fwd_h22 = o.fwd_h22 + $173, fwd_h23 = o.fwd_h23 + $174, 
 
-    ent_h00 = o.ent_h00 + $174, ent_h01 = o.ent_h01 + $175, ent_h02 = o.ent_h02 + $176, ent_h03 = o.ent_h03 + $177,
-    ent_h04 = o.ent_h04 + $178, ent_h05 = o.ent_h05 + $179, ent_h06 = o.ent_h06 + $180, ent_h07 = o.ent_h07 + $181,
-    ent_h08 = o.ent_h08 + $182, ent_h09 = o.ent_h09 + $183, ent_h10 = o.ent_h10 + $184, ent_h11 = o.ent_h11 + $185,
-    ent_h12 = o.ent_h12 + $186, ent_h13 = o.ent_h13 + $187, ent_h14 = o.ent_h14 + $188, ent_h15 = o.ent_h15 + $189,
-    ent_h16 = o.ent_h16 + $190, ent_h17 = o.ent_h17 + $191, ent_h18 = o.ent_h18 + $192, ent_h19 = o.ent_h19 + $193,
-    ent_h20 = o.ent_h20 + $194, ent_h21 = o.ent_h21 + $195, ent_h22 = o.ent_h22 + $196, ent_h23 = o.ent_h23 + $197, 
+    ent_h00 = o.ent_h00 + $175, ent_h01 = o.ent_h01 + $176, ent_h02 = o.ent_h02 + $177, ent_h03 = o.ent_h03 + $178,
+    ent_h04 = o.ent_h04 + $179, ent_h05 = o.ent_h05 + $180, ent_h06 = o.ent_h06 + $181, ent_h07 = o.ent_h07 + $182,
+    ent_h08 = o.ent_h08 + $183, ent_h09 = o.ent_h09 + $184, ent_h10 = o.ent_h10 + $185, ent_h11 = o.ent_h11 + $186,
+    ent_h12 = o.ent_h12 + $187, ent_h13 = o.ent_h13 + $188, ent_h14 = o.ent_h14 + $189, ent_h15 = o.ent_h15 + $190,
+    ent_h16 = o.ent_h16 + $191, ent_h17 = o.ent_h17 + $192, ent_h18 = o.ent_h18 + $193, ent_h19 = o.ent_h19 + $194,
+    ent_h20 = o.ent_h20 + $195, ent_h21 = o.ent_h21 + $196, ent_h22 = o.ent_h22 + $197, ent_h23 = o.ent_h23 + $198,
 
-    total_lost_messages = o.total_lost_messages + $198,
-    total_timeout_messages = o.total_timeout_messages + $199
+    total_lost_messages = o.total_lost_messages + $199,
+    total_timeout_messages = o.total_timeout_messages + $200
 
 returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples, id
 `
-		err = dbconn.QueryRow(context.Background(), q, companyId, day,
+		err = dbconn.QueryRow(context.Background(), q, endpointId, stats.CompanyId, day,
 			r[0],  r[1],  r[2],  r[3],  r[4],  r[5],  r[6],  r[7],  r[8],  r[9],  r[10], r[11],
 			r[12], r[13], r[14], r[15], r[16], r[17], r[18], r[19], r[20], r[21], r[22], r[23],
 			a[0],  a[1],  a[2],  a[3],  a[4],  a[5],  a[6],  a[7],  a[8],  a[9],  a[10], a[11],
@@ -410,7 +413,7 @@ returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples,
 		}
 
 		q = fmt.Sprintf(`
-        update webhook_forwarder_daily_forward_stats_v2
+        update webhook_forwarder_daily_forward_stats_v3
         set
             ex%d = $1,
             circular_pointer_0to3 = $2,
@@ -420,7 +423,7 @@ returning circular_pointer_0to3, last_hour_with_errors, last_hour_with_examples,
         `, circularPointer0to3 + 1)
 		_, err = dbconn.Exec(context.Background(), q, errm, (circularPointer0to3 + 1) & 0x3, hourNow, id)
 		if err != nil {
-			fmt.Printf("rabarberpaj %v\n", err)
+			fmt.Printf("forwarder.forwardDb.UpdateUsage() Failed to update stats.exX %v\n", err)
 			return -1, hourNow, -1, -1, err
 		}
 	}
@@ -433,7 +436,7 @@ func WriteStatsToDb() (int, int, int, int) {
 	var nbrForwarded int = 0
 	var nbrLost int = 0
 	var nbrTimeout int = 0
-	for companyId, s := range forwarderStats.StatsMap {
+	for endpointId, s := range forwarderStats.StatsMap {
 		for i:=0; i<24; i++ {
 			nbrReceived += s.ReceivedAtH[i]
 			nbrForwarded += s.ForwardedAtH[i]
@@ -441,10 +444,10 @@ func WriteStatsToDb() (int, int, int, int) {
 		nbrLost += s.NbrLost
 		nbrTimeout += s.NbrTimeout
 
-		id, hourNow, _, lastHourWithExamples, err := UpdateUsage(companyId, s)
+		id, hourNow, _, lastHourWithExamples, err := UpdateUsage(endpointId, s)
 		if nil == err {
 			if "" != s.Example && hourNow != lastHourWithExamples {
-				err = UpdateLastInMessage(companyId, s.Example, id, hourNow)
+				err = UpdateLastInMessage(s.CompanyId, endpointId, s.Example, id, hourNow)
 				if nil != err {
 					fmt.Printf("forwarder.pg.WriteStatsToDb() UpdateLastInMessage(): %v\n", err)
 				}
@@ -459,7 +462,7 @@ func WriteStatsToDb() (int, int, int, int) {
 	return nbrReceived, nbrForwarded, nbrLost, nbrTimeout
 }
 
-func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId int, hourNow int) error {
+func UpdateLastInMessage(companyId int, endpointId int, exampleMessage string, forwardStatsId int, hourNow int) error {
 	if "" == exampleMessage {
 		return fmt.Errorf("forwarder.database.UpdateLastInMessage(): Received an empty message")
 	}
@@ -480,7 +483,7 @@ func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId in
 	}
 
 	var q = `
-    update webhook_forwarder_daily_forward_stats_v2
+    update webhook_forwarder_daily_forward_stats_v3
     set
         last_hour_with_examples = $1
     where
@@ -496,30 +499,32 @@ func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId in
     SELECT
         circular_pointer_0to3
     FROM
-        webhook_forwarder_latest_forward_examples
+        webhook_forwarder_latest_forward_examples2
     WHERE
-        company_id = $1
+        endpoint_id = $1
 `
-	err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&circularPointer0to3)
+	err = dbconn.QueryRow(context.Background(), q, endpointId).Scan(&circularPointer0to3)
 
 	if nil != err {
 		q = `
-    INSERT INTO webhook_forwarder_latest_forward_examples as o
+    INSERT INTO webhook_forwarder_latest_forward_examples2 as o
     (
         company_id,
+        endpoint_id,
         created_at,
         circular_pointer_0to3
     ) values (
         $1,
+        $2,
         now(),
         0
     )
-    ON CONFLICT (company_id) DO UPDATE 
+    ON CONFLICT (endpoint_id) DO UPDATE 
     SET 
         circular_pointer_0to3 = o.circular_pointer_0to3
     RETURNING circular_pointer_0to3
     `
-		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&circularPointer0to3)
+		err = dbconn.QueryRow(context.Background(), q, companyId, endpointId).Scan(&circularPointer0to3)
 		if nil != err {
 			return err
 		}
@@ -528,14 +533,14 @@ func UpdateLastInMessage(companyId int, exampleMessage string, forwardStatsId in
 	exDest := 1 + circularPointer0to3
 	circularPointer0to3 = (circularPointer0to3 + 1) & 3
 	q = `
-    UPDATE webhook_forwarder_latest_forward_examples
+    UPDATE webhook_forwarder_latest_forward_examples2
     SET
         circular_pointer_0to3 = $1,
         ex` + strconv.Itoa(exDest) + ` = $2
     WHERE
-        company_id = $3
+        endpoint_id = $3
     `
-	_, err = dbconn.Exec(context.Background(), q, circularPointer0to3, exampleMessage, companyId)
+	_, err = dbconn.Exec(context.Background(), q, circularPointer0to3, exampleMessage, endpointId)
 	return err
 }
 
@@ -630,7 +635,7 @@ func Cleanup() {
 	companyInfoMap = make(map[int]*CompanyInfo)
 }
 
-func WriteQueueCheckpoint(companyId int, queueSize int) error {
+func WriteQueueCheckpoint(endpointId int, queueSize int) error {
 
 	dbUsageMutex.Lock()
 	defer dbUsageMutex.Unlock()
@@ -650,6 +655,7 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
 	var ent int
 	var total_lost_messages int
 	var total_timeout_messages int
+	var companyId int
 	q := `
     select
         rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
@@ -657,14 +663,15 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
         fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
         ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
         total_lost_messages as total_lost_messages,
-        total_timeout_messages as total_timeout_messages
+        total_timeout_messages as total_timeout_messages,
+        company_id
     from 
-        webhook_forwarder_daily_forward_stats_v2
+        webhook_forwarder_daily_forward_stats_v3
     where
-        company_id = $1 AND
+        endpoint_id = $1 AND
         created_at = $2
     `
-	err = dbconn.QueryRow(context.Background(), q, companyId, created_at).Scan(&rec, &age, &fwd, &ent, &total_lost_messages, &total_timeout_messages)
+	err = dbconn.QueryRow(context.Background(), q, endpointId, created_at).Scan(&rec, &age, &fwd, &ent, &total_lost_messages, &total_timeout_messages, &companyId)
 	if err != nil {
 		// TODO what's the right way to check if no rows OR query failed?
 		if ! strings.Contains(err.Error(), "no rows in ") {
@@ -675,7 +682,7 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
 	}
 
 	q = `
-    insert into webhook_queue_size_checkpoint as o (
+    insert into webhook_queue_size_checkpoint_v2 as o (
         created_at,
         rec,
         ent,
@@ -684,7 +691,8 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
         total_lost_messages,
         total_timeout_messages,
         counted_items_on_fwd_queues,
-        company_id
+        company_id,
+        endpoint_id
     ) values (
         $1,
         $2,
@@ -694,23 +702,25 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
         $6,
         $7,
         $8,
-        $9
+        $9,
+        $10
     )
-    ON CONFLICT (company_id, created_at) DO UPDATE 
+    ON CONFLICT (endpoint_id, company_id, created_at) DO UPDATE 
     set
-        created_at = $10,
-        rec = $11,
-        ent = $12,
-        age = $13,
-        fwd = $14,
-        total_lost_messages = $15,
-        total_timeout_messages = $16,
-        counted_items_on_fwd_queues = $17,
-        company_id = $18
+        created_at = $11,
+        rec = $12,
+        ent = $13,
+        age = $14,
+        fwd = $15,
+        total_lost_messages = $16,
+        total_timeout_messages = $17,
+        counted_items_on_fwd_queues = $18,
+        company_id = $19,
+        endpoint_id = $20
     `
 	_, err = dbconn.Exec(context.Background(), q,
-		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId,
-		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId)
+		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId,
+		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId)
 	if err != nil {
 		return err
 	}
@@ -718,7 +728,7 @@ func WriteQueueCheckpoint(companyId int, queueSize int) error {
 	return nil
 }
 
-func CalculateQueueSize(companyId int) (int, error) {
+func CalculateQueueSize(endpointId int) (int, error) {
 	dbUsageMutex.Lock()
 	defer dbUsageMutex.Unlock()
 
@@ -735,6 +745,7 @@ func CalculateQueueSize(companyId int) (int, error) {
 	var total_lost_messages int
 	var total_timeout_messages int
 	var counted_items_on_fwd_queues int
+	var companyId int
 	// The 7 days is just because I wanted some kind of limit
 	q := `
     select
@@ -745,17 +756,18 @@ func CalculateQueueSize(companyId int) (int, error) {
         0 - fwd,
         0 - total_lost_messages,
         0 - total_timeout_messages,
-        counted_items_on_fwd_queues
+        counted_items_on_fwd_queues,
+        company_id
     from
-        webhook_queue_size_checkpoint
+        webhook_queue_size_checkpoint_v2
     where
-        company_id = $1 and
+        endpoint_id = $1 and
         created_at > now() - interval '7 days'
     order by
         created_at desc
     limit 1
     `
-	err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&created_at, &rec, &ent, &age, &fwd, &total_lost_messages, &total_timeout_messages, &counted_items_on_fwd_queues)
+	err = dbconn.QueryRow(context.Background(), q, endpointId).Scan(&created_at, &rec, &ent, &age, &fwd, &total_lost_messages, &total_timeout_messages, &counted_items_on_fwd_queues, &companyId)
 	if err != nil {
 		// TODO what's the right way to check if no rows OR query failed?
 		if ! strings.Contains(err.Error(), "no rows in ") {
@@ -781,12 +793,13 @@ func CalculateQueueSize(companyId int) (int, error) {
         total_lost_messages as total_lost_messages,
         total_timeout_messages as total_timeout_messages
     from 
-        webhook_forwarder_daily_forward_stats_v2
+        webhook_forwarder_daily_forward_stats_v3
     where
-        company_id = $1 AND
-        created_at >= $2
+        endpoint_id = $1 AND
+        company_id = $2 AND
+        created_at >= $4
     `
-	rows, err := dbconn.Query(context.Background(), q, companyId, created_at)
+	rows, err := dbconn.Query(context.Background(), q, endpointId, companyId, created_at)
 	if err != nil {
 		return -1, err
 	}
@@ -814,7 +827,7 @@ func CalculateQueueSize(companyId int) (int, error) {
 	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 
 	q = `
-    update webhook_forwarder_daily_forward_stats_v2
+    update webhook_forwarder_daily_forward_stats_v3
     set
         ` + fmt.Sprintf("qus_h%02d", hourNow) + ` = $1
     where
@@ -844,7 +857,7 @@ func GetLatestActiveCompanies() ([]int, error) {
     select
         distinct(company_id)
     from
-        webhook_forwarder_daily_forward_stats_v2
+        webhook_forwarder_daily_forward_stats_v3
     where
         created_at > now() - interval '3 day'
     `
@@ -858,6 +871,46 @@ func GetLatestActiveCompanies() ([]int, error) {
 	for rows.Next() {
 		err = rows.Scan(&companyId)
 		companies = append(companies, companyId)
+	}
+
+	return companies, nil
+}
+
+type EndpointCompany struct {
+	EndPointId          int
+	CompanyId           int
+}
+
+func GetLatestActiveEndpoints() ([]EndpointCompany, error) {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return nil, err
+	}
+
+	var companies = make([]EndpointCompany, 0, 100000)
+
+	q := `
+    select
+        distinct endpoint_id, company_id
+    from
+        webhook_forwarder_daily_forward_stats_v3
+    where
+        created_at > now() - interval '3 day'
+    `
+	rows, err := dbconn.Query(context.Background(), q)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	var endpointId int
+	var companyId int
+	for rows.Next() {
+		err = rows.Scan(&endpointId, &companyId)
+		companies = append(companies, EndpointCompany{EndPointId: endpointId, CompanyId: companyId})
 	}
 
 	return companies, nil
@@ -888,6 +941,7 @@ type CompanyQueueSize struct {
 	WarnedAt      *time.Time  // nullable!
 	DisabledAt    *time.Time  // nullable!
 	AlertEmail    string
+	EndpointId    int
 }
 
 func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
@@ -911,6 +965,7 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
 	var warnedAt pq.NullTime
 	var disabledAt pq.NullTime
 	var alertEmail string
+	var endpointId int
 
 	// TODO add some min level. Eg. only bother if >1000 items in queue
 	q := `
@@ -919,9 +974,10 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
         ws.qus_h` + fmt.Sprintf("%02d", hourNow) + `,
         wc.warned_at,
         wc.disabled_at,
-        uc.alert_email
+        uc.alert_email,
+        ws.endpoint_id
     from
-        webhook_forwarder_daily_forward_stats_v2 ws,
+        webhook_forwarder_daily_forward_stats_v3 ws,
         webhook_forwarder_poll_cfg wc,
         users_company uc
     where
@@ -937,7 +993,7 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
 
 	defer rows.Close()
 	for rows.Next() {
-		err = rows.Scan(&companyId, &queueSize, &warnedAt, &disabledAt, &alertEmail)
+		err = rows.Scan(&companyId, &queueSize, &warnedAt, &disabledAt, &alertEmail, &endpointId)
 		if nil != err {
 			return nil, err
 		}
@@ -947,6 +1003,7 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
 			PresentHour: presentHour,
 			QueueSize: queueSize,
 			AlertEmail: alertEmail,
+			EndpointId: endpointId,
 		}
 
 		if warnedAt.Valid {
