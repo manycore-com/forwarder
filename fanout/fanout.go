@@ -166,23 +166,24 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				hashHead := CalculateSafeHashFromSecret(ci.Secret)
-
-				if hashHead != elem.SafeHash {
-					fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
-					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-					continue
-				}
-
 				if 0 == len(ci.EndPoints) {
 					ignoreCompany[elem.CompanyID] = true
 					continue
 				}
 
-				forwarderStats.AddReceivedAtH(elem.CompanyID, elem.EndPointId)
-
 				for _, endPoint := range ci.EndPoints {
+					fmt.Printf("forwarder.fanout.asyncFanout() endpoint:%d\n", endPoint.EndPointId)
 					elem.EndPointId = endPoint.EndPointId
+
+					hashHead := CalculateSafeHashFromSecret(ci.Secret)
+
+					if hashHead != elem.SafeHash {
+						fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
+						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
+						continue
+					}
+
+					forwarderStats.AddReceivedAtH(elem.CompanyID, elem.EndPointId)
 
 					if ! hasSetMessage[elem.CompanyID] {
 						hasSetMessage[elem.CompanyID] = true

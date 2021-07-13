@@ -135,8 +135,8 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                 select array_to_json(array_agg(row_to_json(t)))
                 from (
                     select 
-                        id as EndPointId,
-                        forward_endpoint as ForwardEndPoint,
+                        id as "EndPointId",
+                        forward_endpoint as "ForwardEndPoint",
                         coalesce(max_concurrent_fwd,1000000) as "MaxConcurrentFwd"
                     from
                         webhook_forwarder_poll_endpoint ipe
