@@ -681,6 +681,22 @@ func WriteQueueCheckpoint(endpointId int, queueSize int) error {
 		fmt.Printf("forwarder.database.WriteQueueCheckpoint(): no stats row, assuming zeros\n")
 	}
 
+	// No rows found, we need to lookup companyId
+	if 0 == companyId {
+		q = `
+        select
+            company_id
+        from
+            webhook_forwarder_poll_endpoint
+        where
+            id = $1
+        `
+		err = dbconn.QueryRow(context.Background(), q, endpointId).Scan(&companyId)
+		if err != nil {
+			return fmt.Errorf("forwarder.database.WriteQueueCheckpoint() Failed to lookup Company from Endpoint=%d: %v", endpointId, err)
+		}
+	}
+
 	q = `
     insert into webhook_queue_size_checkpoint_v2 as o (
         created_at,
