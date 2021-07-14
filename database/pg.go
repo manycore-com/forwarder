@@ -718,6 +718,7 @@ func WriteQueueCheckpoint(endpointId int, queueSize int) error {
         company_id = $19,
         endpoint_id = $20
     `
+	fmt.Printf("forwarder.database.WriteQueueCheckpoint() Result: created:%v rec:%v ent:%v age:%v fwd:%v lost:%v timeout:%v qsize:%v company:%v endpoint:%v\n", created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId)
 	_, err = dbconn.Exec(context.Background(), q,
 		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId,
 		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId)
