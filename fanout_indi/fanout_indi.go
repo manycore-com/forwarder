@@ -1,6 +1,7 @@
-package fanout
+package fanout_indi
 
 import (
+	"cloud.google.com/go/pubsub"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
+	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"os"
 	"strconv"
@@ -22,9 +24,9 @@ func CalculateSafeHashFromSecret(secret string) string {
 
 var projectId = ""
 var inSubscriptionId = ""
-var outQueueTopicId = ""
-var minAge = -1  // No delay!
-var devprod = ""  // Optional: We use dev for development, devprod for live test, prod for live
+var destTopicTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
+var minAge = -1            // No delay!
+var devprod = ""           // Optional: We use dev for development, devprod for live test, prod for live
 var nbrAckWorkers = 32
 var nbrPublishWorkers = 32
 var maxNbrMessagesPolled = 64
@@ -33,17 +35,21 @@ var maxOutstandingMessages = 32
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
-	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")
+	destTopicTemplate = os.Getenv("DEST_TOPIC_TEMPLATE")
 
 	if projectId == "" {
 		return fmt.Errorf("missing PROJECT_ID environment variable")
 	}
 
-	if outQueueTopicId == "" {
-		return fmt.Errorf("missing OUT_QUEUE_TOPIC_ID environment variable")
+	devprod = os.Getenv("DEV_OR_PROD")
+
+	if "" == inSubscriptionId {
+		return fmt.Errorf("mandatory IN_SUBSCRIPTION_ID environment variable missing")
 	}
 
-	devprod = os.Getenv("DEV_OR_PROD")
+	if "" == destTopicTemplate {
+		return fmt.Errorf("mandatory DEST_TOPIC_TEMPLATE environment variable missing")
+	}
 
 	var err error
 	// Optional: How many go threads should send ACK on received messages?
@@ -127,7 +133,21 @@ func env() error {
 	return nil
 }
 
+var usedEndPoints map[int]int
+var usedEndPointsMutex sync.Mutex
+func addEndPointId(endPointId int) {
+	usedEndPointsMutex.Lock()
+	defer usedEndPointsMutex.Unlock()
+
+	if 0 == usedEndPoints[endPointId] {
+		usedEndPoints[endPointId] = 1
+	} else {
+		usedEndPoints[endPointId] += 1
+	}
+}
+
 func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup) {
+	usedEndPoints = make(map[int]int)
 
 	for i := 0; i < nbrPublishWorkers; i++ {
 		forwardWaitGroup.Add(1)
@@ -135,22 +155,23 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 		go func(idx int, forwardWaitGroup *sync.WaitGroup) {
 			defer forwardWaitGroup.Done()
 
-			ctx, client, outQueueTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, outQueueTopicId)
+			ctx, client, err := forwarderPubsub.SetupClient(projectId)
 			if nil != client {
 				defer client.Close()
 			}
 
 			if err != nil {
-				fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Critical Error: Failed to instantiate Topic Client: %v\n", devprod, idx, err)
+				fmt.Printf("forwarder.fanout_indi.asyncFanout(%d): Critical Error: Failed to instantiate Topic Client: %v\n", idx, err)
 				return
 			}
 
 			ignoreCompany := map[int]bool{}
 			hasSetMessage := map[int]bool{}
+			endPointIdToTopic := map[int]*pubsub.Topic{}
 			for {
 				elem := <- *pubsubForwardChan
 				if nil == elem {
-					//fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): done.\n", devprod, idx)
+					//fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): done.\n", devprod, idx)
 					break
 				}
 
@@ -161,7 +182,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 
 				ci, err := forwarderDb.GetUserData(elem.CompanyID)
 				if nil != err {
-					fmt.Printf("forwarder.fanout.asyncFanout() failed to get user data: %v\n", err)
+					fmt.Printf("forwarder.fanout_indi.asyncFanout() failed to get user data: %v\n", err)
 					ignoreCompany[elem.CompanyID] = true
 					continue
 				}
@@ -172,13 +193,15 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 				}
 
 				for _, endPoint := range ci.EndPoints {
-					fmt.Printf("forwarder.fanout.asyncFanout() endpoint:%d\n", endPoint.EndPointId)
+					fmt.Printf("forwarder.fanout_indi.asyncFanout() endpoint:%d\n", endPoint.EndPointId)
 					elem.EndPointId = endPoint.EndPointId
+
+					addEndPointId(endPoint.EndPointId)
 
 					hashHead := CalculateSafeHashFromSecret(ci.Secret)
 
 					if hashHead != elem.SafeHash {
-						fmt.Printf("forwarder.fanout.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
+						fmt.Printf("forwarder.fanout_indi.asyncFanout(): Safe hash is wrong. companyId=%d wrongHash=%s\n", elem.CompanyID, elem.SafeHash)
 						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 						continue
 					}
@@ -191,13 +214,19 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 						if nil == err {
 							forwarderStats.AddExample(elem.CompanyID, elem.EndPointId, string(payload))
 						} else {
-							fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): failed to Marshal element. companyId=%d err=%v\n", devprod, idx, elem.CompanyID, err)
+							fmt.Printf("forwarder.fanout_indi.asyncFanout(%d): failed to Marshal element. companyId=%d err=%v\n", idx, elem.CompanyID, err)
 						}
 					}
 
-					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx, outQueueTopic, elem)
+					var outQueueTopicId = fmt.Sprintf(destTopicTemplate, elem.EndPointId)
+					if _, ok := endPointIdToTopic[elem.EndPointId]; ! ok {
+						endPointIdToTopic[elem.EndPointId] = client.Topic(outQueueTopicId)
+					}
+					var outTopic = endPointIdToTopic[elem.EndPointId]
+
+					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx, outTopic, elem)
 					if err != nil {
-						fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
+						fmt.Printf("forwarder.fanout_indi.asyncFanout(%d): Error: Failed to send to %s pubsub: %v\n", idx, outQueueTopicId, err)
 						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 						continue
 					} else {
@@ -223,10 +252,10 @@ func cleanup() {
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
-func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
+func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.fanout.Fanout(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
+		return fmt.Errorf("forwarder.fanout_indi.FanoutIndi(h%d): webhook responder is mis configured: %v", hashId, err)
 	}
 
 	defer cleanup()
@@ -234,13 +263,19 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) er
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.fanout.Fanout(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d): Db check failed: %v\n", hashId, err)
 		return err
 	}
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) We're in PAUSE\n", devprod, hashId)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) We're in PAUSE\n", hashId)
 		return nil
+	}
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d): Failed to init Redis: %v\n", hashId, err)
+		return err
 	}
 
 	// The webhook posts to the topic feeding inSubscriptionId
@@ -262,14 +297,29 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) er
 	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) failed to receive events: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to receive events: %v\n", hashId, err)
 	}
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
+	// Store endpoint keys to active set.
+	for endPointId, count := range usedEndPoints {
+		_, err = forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
+		if err != nil {
+			// No point in returning an error here. 
+			fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to add active endpoint: %v\n", hashId, err)
+		}
+
+		// Increase FWD_IQ_QS_#
+		_, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), count)
+		if nil != err {
+			fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to increase queues size in redis: %v\n", hashId, err)
+		}
+	}
+
 	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout.Fanout(%s, h%d): done. v%s # received: %d, # drop: %d,  Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout_indi.Fanout(h%d): done. v%s # received: %d, # drop: %d,  Memstats: %s\n", hashId, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
-	return nil
+	return err
 }

@@ -116,7 +116,7 @@ func asyncSendTriggerPackages(channel *chan int64, waitGroup *sync.WaitGroup, tr
 				}
 
 				var msg = fmt.Sprintf("{\"tp\":%d}", val)
-				err := forwarderPubsub.PushJsonStringToPubsub(ctx, triggerTopic, msg)
+				err := forwarderPubsub.PushAndWaitJsonStringToPubsub(ctx, triggerTopic, msg)
 				if err != nil {
 					fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Failed to publish to trigger topic %s: %v\n", devprod, idx, triggerTopicId, err)
 				}

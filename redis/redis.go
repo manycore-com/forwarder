@@ -284,8 +284,8 @@ func DecrBy(key string, by int) (int, error) {
 
 // Set methods
 
-// SetAdd adds item to set
-func SetAdd(key string, val interface{}) (int, error) {
+// SetAddMember adds item to set
+func SetAddMember(key string, val interface{}) (int, error) {
 	conn := redisPool.Get()
 	defer conn.Close()
 

@@ -1,13 +1,19 @@
 package individual_queues
 
 import (
+	"cloud.google.com/go/pubsub"
+	"context"
 	"encoding/json"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
+	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var endpointIdToCfg = make(map[int]*forwarderDb.EndPointCfgStruct)
@@ -16,17 +22,43 @@ var touchedForwardId = make(map[int]bool)
 
 var iqMutex sync.Mutex
 
+var projectId = ""
+var nbrPublishWorkers = 32
+func env() error {
+	var err error
+	projectId = os.Getenv("PROJECT_ID")
+
+	// Optional: How many go threads should send ACK on received messages?
+	if "" != os.Getenv("NBR_PUBLISH_WORKER") {
+		nbrPublishWorkers, err = strconv.Atoi(os.Getenv("NBR_PUBLISH_WORKER"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer NBR_PUBLISH_WORKER: %v", err)
+		}
+
+		if 1 > nbrPublishWorkers {
+			return fmt.Errorf("optional NBR_PUBLISH_WORKER environent variable must be at least 1: %v", nbrPublishWorkers)
+		}
+
+		if 1000 < nbrPublishWorkers {
+			return fmt.Errorf("optional NBR_PUBLISH_WORKER environent should not be over 1000: %v", nbrPublishWorkers)
+		}
+	}
+
+	return nil
+}
+
 func Cleanup() {
 	endpointIdToCfg = make(map[int]*forwarderDb.EndPointCfgStruct)
 	touchedForwardId = make(map[int]bool)
 }
 
+// TouchForwardId prepare a forwardId for use
 func TouchForwardId(forwardId int) error {
 	if touchedForwardId[forwardId] {
 		return nil
 	}
 
-	_, err := forwarderRedis.SetAdd("FWD_IQ_ACTIVE_ENDPOINTS_SET", forwardId)
+	_, err := forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", forwardId)
 	if nil != err {
 		fmt.Printf("forwarder.IQ.TouchForwardId() error: %v\n", err)
 		return err
@@ -35,6 +67,8 @@ func TouchForwardId(forwardId int) error {
 	return nil
 }
 
+// GetEndPointData gives us the forward URL and some other data for the particular endpoint.
+// This method caches in ram + redis from db. It's meant to be able to be called from a loop without anyone getting upset.
 func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 	iqMutex.Lock()
 	defer iqMutex.Unlock()
@@ -99,17 +133,18 @@ func ReCalculateUsersQueueSizes(projectID string, endPointIdToSubsId map[int]str
 		subscriptionIds = append(subscriptionIds, subsId)
 	}
 
-	sizeMap, err := forwarderPubsub.CheckNbrItemsPubsubs(projectID, subscriptionIds)
+	subsToCount, err := forwarderPubsub.CheckNbrItemsPubsubs(projectID, subscriptionIds)
 	if nil != err {
 		return fmt.Errorf("forwarder.individual_queues.ReCalculateUsersQueueSizes() Failed to check queue sizes: %v", err)
 	}
 
+	// This is a set with all the endpoint ids we currently want to look at.
 	forwarderRedis.Del("FWD_IQ_ACTIVE_ENDPOINTS_SET")
 	for endPointId, subsName := range endPointIdToSubsId {
 
-		if val, ok := sizeMap[subsName]; ok {
+		if val, ok := subsToCount[subsName]; ok {
 			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), val)
-			forwarderRedis.SetAdd("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
+			forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
 		} else {
 			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), int64(0))
 		}
@@ -117,6 +152,193 @@ func ReCalculateUsersQueueSizes(projectID string, endPointIdToSubsId map[int]str
 		// Assume nothing is currently processing. This method is only called after a certain time of Pause.
 		forwarderRedis.SetInt64("FWD_IQ_PS_" + strconv.Itoa(endPointId), int64(0))
 	}
+
+	return nil
+}
+
+func asyncWriterToIndividualQueues(writerChan *chan *forwarderPubsub.PubSubElement,
+	                               writerWaitGroup *sync.WaitGroup,
+	                               destSubscriptionTemplate string) {
+
+	for i := 0; i < nbrPublishWorkers; i++ {
+		writerWaitGroup.Add(1)
+
+		go func(idx int, forwardWaitGroup *sync.WaitGroup) {
+			defer forwardWaitGroup.Done()
+
+			ctx := context.Background()
+			client, err := pubsub.NewClient(ctx, projectId)
+			if err != nil {
+				fmt.Printf("forwarder.IQ.asyncWriterToIndividualQueues() Error: Failed to create client: %v\n", err)
+				return
+			}
+
+			if nil != client {
+				defer client.Close()
+			}
+
+			var endpointToTopicMap = make(map[int]*pubsub.Topic)
+
+			for {
+				elem := <- *writerChan
+				if nil == elem {
+					break
+				}
+
+				if 0 == elem.EndPointId {
+					fmt.Printf("forwarder.IQ.asyncWriterToIndividualQueues() Error: endpoint id is 0\n")
+					continue
+				}
+
+				topicId := fmt.Sprintf(destSubscriptionTemplate, elem.EndPointId)
+				if _, ok := endpointIdToCfg[elem.EndPointId]; ! ok {
+					newObj := client.Topic(topicId)
+					endpointToTopicMap[elem.EndPointId] = newObj
+				}
+
+				topic := endpointToTopicMap[elem.EndPointId]
+				err = forwarderPubsub.PushAndWaitElemToPubsub(&ctx, topic, elem)
+				if err != nil {
+					fmt.Printf("forwarder.IQ.asyncWriterToIndividualQueues() Error: Failed to forward to individual endpoint %s: %v\n", topicId, err)
+					// TODO push back to original queue? It's being consumed from.
+					continue
+				}
+
+				fmt.Printf("forwarder.IQ.asyncWriterToIndividualQueues() Success forwarding to %s\n", topicId)
+			}
+
+		} (i, writerWaitGroup)
+	}
+}
+
+// PullAllSubscriptions should also do stats for queue age etc.
+func PullAllSubscriptions(sourceSubscriptionIds []string, writerChan *chan *forwarderPubsub.PubSubElement) bool {
+	var waitGroup sync.WaitGroup
+	var seriousError bool = false
+	for _, sourceSubscriptionId := range sourceSubscriptionIds {
+		waitGroup.Add(1)
+
+		go func(waitGroup *sync.WaitGroup, sourceSubscription string, writerChan *chan *forwarderPubsub.PubSubElement) {
+			defer waitGroup.Done()
+
+			ctx := context.Background()
+			client, clientErr := pubsub.NewClient(ctx, projectId)
+			if clientErr != nil {
+				fmt.Printf("forwarder.IQ.PullAllSubscriptions(%s) failed to create client: %v\n", sourceSubscription, clientErr)
+				seriousError = true
+				return
+			}
+
+			if nil != client {
+				defer client.Close()
+			}
+
+			subscription := client.Subscription(sourceSubscription)
+			subscription.ReceiveSettings.Synchronous = true
+			subscription.ReceiveSettings.MaxOutstandingMessages = nbrPublishWorkers
+			subscription.ReceiveSettings.MaxOutstandingBytes = 11000000
+			fmt.Printf("Source subscription: %v\n", sourceSubscription)
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(500) * time.Second)
+			defer cancel()
+
+			var mu sync.Mutex
+			var runTick = true
+			var startMs = time.Now().UnixNano() / 1000000
+			var lastAtMs = startMs + 5000 // 3000ms was too low for local machine. 8000ms was enough. It's reset after first received message.
+			go func() {
+				for {
+					time.Sleep(time.Millisecond * 100)
+					mu.Lock()
+					var copyOfRunTick = runTick
+					var copyOfLastAtMs = lastAtMs
+					mu.Unlock()
+
+					if !copyOfRunTick {
+						return
+					}
+
+					var rightNow = time.Now().UnixNano() / 1000000
+					if (int64(6000) + copyOfLastAtMs) < rightNow {
+						fmt.Printf("forwarder.IQ.PullAllSubscriptions.func(%s) Killing Receive due to %dms inactivity.\n", sourceSubscription, 6000)
+						mu.Lock()
+						runTick = false
+						mu.Unlock()
+						cancel()
+						return
+					}
+				}
+			} ()
+
+			err := subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+				mu.Lock()
+				var runTickCopy = runTick
+				mu.Unlock()
+
+				if ! runTickCopy {
+					fmt.Printf("forwarder.IQ.PullAllSubscriptions.Receive(%s) we are canceled.\n", sourceSubscription)
+					defer msg.Nack()
+					return
+				}
+
+				var elem forwarderPubsub.PubSubElement
+				err := json.Unmarshal(msg.Data, &elem)
+
+				if nil == err {
+					mu.Lock()
+
+					lastAtMs = time.Now().UnixNano() / 1000000
+
+					mu.Unlock()
+
+					fmt.Printf("forwarder.IQ.PullAllSubscriptions.Receive(%s): counted message %v\n", sourceSubscription, elem)
+					*writerChan <- &elem
+					msg.Ack()
+
+				} else {
+					fmt.Printf("forwarder.IQ.PullAllSubscriptions.Receive(%s): Error: failed to Unmarshal: %v\n", sourceSubscription, err)
+					msg.Ack()  // Valid or not, Ack to get rid of it
+				}
+			})
+
+			if nil != err {
+				fmt.Printf("forwarder.IQ.PullAllSubscriptions(%s) Received failed: %v\n", sourceSubscription, err)
+				// The defer anonymous function will write -1 instead
+				seriousError = true
+			}
+
+		} (&waitGroup, sourceSubscriptionId, writerChan)
+	}
+
+	waitGroup.Wait()
+
+	var memUsage = forwarderStats.GetMemUsageStr()
+	fmt.Printf("forwarder.IQ.PullAllSubscriptions() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
+
+	return seriousError
+}
+
+func MoveToIndividual(sourceSubscriptionIds []string, destSubscriptionTemplate string) error {
+
+	// Setup writer to destination
+	writerChan := make(chan *forwarderPubsub.PubSubElement, 2000)
+	defer close(writerChan)
+	var writerWaitGroup sync.WaitGroup
+
+	asyncWriterToIndividualQueues(&writerChan, &writerWaitGroup, destSubscriptionTemplate)
+
+	// Poll everything
+	seriousError := PullAllSubscriptions(sourceSubscriptionIds, &writerChan)
+	if seriousError {
+		// TODO add said error
+		return fmt.Errorf("forwarder.IQ.MoveToIndividual() Error: Serious error")
+	}
+
+	for i:=0; i<nbrPublishWorkers; i++ {
+		writerChan <- nil
+	}
+
+	writerWaitGroup.Wait()
 
 	return nil
 }

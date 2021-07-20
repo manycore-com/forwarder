@@ -108,7 +108,7 @@ func populateSubscription(topicName string) error {
 					Sign: "sign",
 				}
 
-				err = PushElemToPubsub(ctx, topic, &structToPush)
+				err = PushAndWaitElemToPubsub(ctx, topic, &structToPush)
 				if nil != err {
 					fmt.Printf("Failed to push element: %v\n", err)
 					return

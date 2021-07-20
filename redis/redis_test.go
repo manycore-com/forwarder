@@ -30,7 +30,7 @@ func TestSadd(t *testing.T) {
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd(DISPENSIBLE_KEY, 1)
+	_, err = SetAddMember(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
 
 	Del(DISPENSIBLE_KEY)
@@ -43,9 +43,9 @@ func TestSetMembers(t *testing.T) {
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd(DISPENSIBLE_KEY, 1)
+	_, err = SetAddMember(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
-	_, err = SetAdd(DISPENSIBLE_KEY, 2)
+	_, err = SetAddMember(DISPENSIBLE_KEY, 2)
 	assert.NoError(t, err)
 
 	xx, err := SetMembers(DISPENSIBLE_KEY)
@@ -62,9 +62,9 @@ func TestSetMembersInt(t *testing.T) {
 	assert.NoError(t, err)
 	defer Cleanup()
 
-	_, err = SetAdd(DISPENSIBLE_KEY, 1)
+	_, err = SetAddMember(DISPENSIBLE_KEY, 1)
 	assert.NoError(t, err)
-	_, err = SetAdd(DISPENSIBLE_KEY, 223456)
+	_, err = SetAddMember(DISPENSIBLE_KEY, 223456)
 	assert.NoError(t, err)
 
 	xx, err := SetMembersInt(DISPENSIBLE_KEY)

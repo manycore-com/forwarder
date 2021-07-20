@@ -1,8 +1,9 @@
-package forward
+package forward_indi
 
 import (
 	"cloud.google.com/go/pubsub"
 	"context"
+	"encoding/json"
 	"fmt"
 	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
@@ -11,6 +12,7 @@ import (
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
+	forwarderTriggerIndi "github.com/manycore-com/forwarder/trigger_indi"
 	"os"
 	"strconv"
 	"sync"
@@ -18,7 +20,7 @@ import (
 )
 
 var projectId = ""
-var inSubscriptionId = ""
+var inSubscriptionTemplate = ""
 var outQueueTopicId = ""
 var minAgeSecs = -1 // No delay!
 var devprod = ""    // Optional: We use dev for development, devprod for live test, prod for live
@@ -33,11 +35,15 @@ var secondsThresholdToNextQueue = -1
 var nextQueueTopicId = ""
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
-	inSubscriptionId = os.Getenv("IN_SUBSCRIPTION_ID")
+	inSubscriptionTemplate = os.Getenv("IN_SUBSCRIPTION_TEMPLATE")
 	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")
 
 	if projectId == "" {
 		return fmt.Errorf("missing PROJECT_ID environment variable")
+	}
+
+	if inSubscriptionTemplate == "" {
+		return fmt.Errorf("missing IN_SUBSCRIPTION_TEMPLATE environment variable")
 	}
 
 	devprod = os.Getenv("DEV_OR_PROD")
@@ -174,7 +180,7 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 
 			if err != nil {
 				// TODO: propagate error
-				fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client: %v\n", devprod, idx, err)
+				fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client: %v\n", devprod, idx, err)
 				return
 			}
 
@@ -188,7 +194,7 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 				}
 
 				if err != nil {
-					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client2: %v\n", devprod, idx, err)
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client2: %v\n", devprod, idx, err)
 					secondsThresholdToNextQueue = -1
 				}
 			}
@@ -196,12 +202,12 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 			for {
 				elem := <- *pubsubFailureChan
 				if nil == elem {
-					//fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): done.\n", devprod, idx)
+					//fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): done.\n", devprod, idx)
 					break
 				}
 
 				if "" == nextTopicId {
-					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Failure: too many errors: %#v\n", devprod, idx, elem)
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Failure: too many errors: %#v\n", devprod, idx, elem)
 					continue
 				}
 
@@ -210,20 +216,20 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx2, nextQueueTopic, elem)
 					if err != nil {
 						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v (next queue)\n", devprod, idx, nextQueueTopicId, err)
+						fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v (next queue)\n", devprod, idx, nextQueueTopicId, err)
 						continue
 					}
 
-					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v (next queue)\n", devprod, idx, nextQueueTopicId, elem)
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v (next queue)\n", devprod, idx, nextQueueTopicId, elem)
 				} else {
 					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx1, nextForwardTopic, elem)
 					if err != nil {
 						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-						fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
+						fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
 						continue
 					}
 
-					fmt.Printf("forwarder.forward.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
 				}
 			}
 		} (i, failureWaitGroup)
@@ -252,12 +258,12 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 			for {
 				elem := <- *pubsubForwardChan
 				if nil == elem {
-					//fmt.Printf("forwarder.forward.asyncForward(%s,%d): done.\n", devprod, idx)
+					//fmt.Printf("forwarder.forward_indi.asyncForward(%s,%d): done.\n", devprod, idx)
 					break
 				}
 
 				if elem.Ts < dieIfTsLt {
-					fmt.Printf("forwarder.forward.asyncForward(%s) Package died of old age\n", devprod)
+					fmt.Printf("forwarder.forward_indi.asyncForward(%s) Package died of old age\n", devprod)
 					forwarderStats.AddTimeout(elem.CompanyID, elem.EndPointId)
 					continue
 				}
@@ -270,7 +276,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 				if elem.ESP == "sg" {
 					err, anyPointToRetry = forwarderEsp.ForwardSg(devprod, elem)
 				} else {
-					fmt.Printf("forwarder.forward.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
+					fmt.Printf("forwarder.forward_indi.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
 					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 					forwarderStats.AddErrorMessage(elem.CompanyID, elem.EndPointId, "Only sendgrid is supported for now. esp=" + elem.ESP)
 					continue
@@ -281,7 +287,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					forwarderStats.AddAgeWhenForward(elem.CompanyID, elem.EndPointId, elem.Ts)
 				} else {
 
-					fmt.Printf("forwarder.forward.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
+					fmt.Printf("forwarder.forward_indi.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
 
 					if anyPointToRetry {
 						// Stats calculated by asyncFailureProcessing
@@ -309,10 +315,10 @@ func cleanup() {
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
-func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
+func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.webhook.Forward(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
+		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
 	}
 
 	defer cleanup()
@@ -320,12 +326,12 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.forward.Forward(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
 		return err
 	}
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) We're in PAUSE\n", devprod, hashId)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d) We're in PAUSE\n", devprod, hashId)
 		return nil
 	}
 
@@ -336,6 +342,12 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 	defer forwarderRedis.Cleanup()
 
 	defer forwarderIQ.Cleanup()
+
+	var trgmsg forwarderTriggerIndi.TriggerIndiElement
+	err = json.Unmarshal(m.Data, &trgmsg)
+	if nil != err {
+		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(h%d) Error decoding trigger message: %v", hashId, err)
+	}
 
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
 	defer close(pubsubFailureChan)
@@ -350,10 +362,26 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
+	var inSubscriptionId = fmt.Sprintf(inSubscriptionTemplate, trgmsg.EndPointId)
+	receivedInTotal, err := forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, trgmsg.NbrItems, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.forward.Forward(%s, h%d): failed to receive events: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): failed to receive events: %v\n", devprod, hashId, err)
+	}
+
+	val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - trgmsg.NbrItems)
+	if nil != err {
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(h%d) failed to decrease FWD_IQ_PS_%d by %d to %d: %v\n", hashId, trgmsg.EndPointId, trgmsg.NbrItems, val, err)
+	}
+
+	var nbrGlitch = trgmsg.NbrItems - receivedInTotal
+	if 0 != nbrGlitch {
+		val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), nbrGlitch)
+		if err != nil {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_PS_%d by %d: %v\n", trgmsg.EndPointId, nbrGlitch, err)
+		} else {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, nbrGlitch, val)
+		}
 	}
 
 	takeDownAsyncForward(&pubsubForwardChan, &forwardWaitGroup)
@@ -362,7 +390,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward.Forward(%s, h%d): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

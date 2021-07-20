@@ -94,23 +94,32 @@ func CheckNbrItemsPubsub(projectID string, subscriptionId string) (int64,error) 
 	return subsToCount[subscriptionId], nil
 }
 
-func SetupClientAndTopic(projectID string, topicId string) (*context.Context, *pubsub.Client, * pubsub.Topic, error) {
+func SetupClient(projectID string) (*context.Context, *pubsub.Client, error) {
+	ctx := context.Background()
+	client, err := pubsub.NewClient(ctx, projectID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("forwarder.pubsub.setupClient(): Critical Error: Failed to instantiate Client: %v", err)
+	}
+
+	return &ctx, client, nil
+}
+
+func SetupClientAndTopic(projectID string, topicId string) (*context.Context, *pubsub.Client, *pubsub.Topic, error) {
 	if "" == topicId {
 		return nil, nil, nil, fmt.Errorf("forwarder.pubsub.setupClientAndTopic(): Critical Error: Missing Topic ID")
 	}
 
-	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, projectID)
+	ctx, client, err := SetupClient(projectID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("forwarder.pubsub.setupClientAndTopic(): Critical Error: Failed to instantiate Client: %v", err)
+		return nil, nil, nil, err
 	}
 
 	var topicInstance = client.Topic(topicId)
 
-	return &ctx, client, topicInstance, nil
+	return ctx, client, topicInstance, nil
 }
 
-func PushElemToPubsub(ctx *context.Context, topic *pubsub.Topic, elem *PubSubElement) error {
+func PushAndWaitElemToPubsub(ctx *context.Context, topic *pubsub.Topic, elem *PubSubElement) error {
 	payload, err := json.Marshal(elem)
 	if err != nil {
 		return fmt.Errorf("asyncFailureProcessing(): Error: Failed to Marshal pubsub payload: %v", err)
@@ -123,13 +132,13 @@ func PushElemToPubsub(ctx *context.Context, topic *pubsub.Topic, elem *PubSubEle
 	// id, waiterr
 	_, waitErr := nextForwardPublishResult.Get(*ctx)
 	if waitErr != nil {
-		return fmt.Errorf("forwarder.pubsub.PushElemToPubsub(): Error: Failed to get result: %v", waitErr)
+		return fmt.Errorf("forwarder.pubsub.PushAndWaitElemToPubsub(): Error: Failed to get result: %v", waitErr)
 	}
 
 	return nil
 }
 
-func PushJsonStringToPubsub(ctx *context.Context, topic *pubsub.Topic, jsonString string) error {
+func PushAndWaitJsonStringToPubsub(ctx *context.Context, topic *pubsub.Topic, jsonString string) error {
 	nextForwardPublishResult := topic.Publish(*ctx, &pubsub.Message{
 		Data: []byte(jsonString),
 	})
@@ -137,7 +146,7 @@ func PushJsonStringToPubsub(ctx *context.Context, topic *pubsub.Topic, jsonStrin
 	// id, waiterr
 	_, waitErr := nextForwardPublishResult.Get(*ctx)
 	if waitErr != nil {
-		return fmt.Errorf("forwarder.pubsub.PushJsonStringToPubsub(): Error: Failed to get result: %v", waitErr)
+		return fmt.Errorf("forwarder.pubsub.PushAndWaitJsonStringToPubsub(): Error: Failed to get result: %v", waitErr)
 	}
 
 	return nil

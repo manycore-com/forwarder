@@ -46,7 +46,7 @@ func TestXX(t *testing.T) {
 
 	for i:=0; i<30; i++ {
 
-		err = PushJsonStringToPubsub(ctx1, nextForwardTopic, okPayload)
+		err = PushAndWaitJsonStringToPubsub(ctx1, nextForwardTopic, okPayload)
 		if err != nil {
 			fmt.Printf("forwarder.forward.asyncFailureProcessing(%s): Error: Failed to send to %s pubsub: %v\n", devprod, nextTopicId, err)
 			continue

@@ -19,13 +19,13 @@ import (
 var projectId = ""
 var nbrHash = -1
 var gcpLocation = ""
-func env() error {
+func Env() error {
 	projectId = os.Getenv("PROJECT_ID")
 
 	var err error
 
 	if "" == os.Getenv("NBR_HASH") {
-		return fmt.Errorf("forwarder.pause.env() Missing NBR_HASH environment variable")
+		return fmt.Errorf("forwarder.pause.Env() Missing NBR_HASH environment variable")
 	} else {
 		nbrHash, err = strconv.Atoi(os.Getenv("NBR_HASH"))
 		if nil != err {
@@ -42,7 +42,7 @@ func env() error {
 	}
 
 	if "" == os.Getenv("GCP_LOCATION") {
-		return fmt.Errorf("forwarder.pause.env() You need to set GCP_LOCATION")
+		return fmt.Errorf("forwarder.pause.Env() You need to set GCP_LOCATION")
 	} else {
 		gcpLocation = os.Getenv("GCP_LOCATION")
 	}
@@ -52,7 +52,7 @@ func env() error {
 
 // Pause crates one pause row per hash, and it pauses Google Cloud Scheduler
 func Pause(jobNames []string) error {
-	err := env()
+	err := Env()
 	if nil != err {
 		return err
 	}
@@ -93,7 +93,7 @@ func Pause(jobNames []string) error {
 }
 
 func Resume(jobNames []string) error {
-	err := env()
+	err := Env()
 	if nil != err {
 		return err
 	}
@@ -156,7 +156,7 @@ func WriteBackMessages(nbrWriteBackWorkers int, writeBackChan *chan *forwarderPu
 					return
 				}
 
-				err = forwarderPubsub.PushElemToPubsub(ctx1, topic, elem)
+				err = forwarderPubsub.PushAndWaitElemToPubsub(ctx1, topic, elem)
 				if nil != err {
 					fmt.Printf("forwarder.pause.writeBackMessages(%s): error pushing: %v\n", topicName, err)
 				} else {
@@ -313,7 +313,7 @@ func MoveAndCount(subscriptionPairs [][]string, reverse bool) bool {
 }
 
 func CountAndCheckpoint2(subscriptionPairs [][]string, jobNames []string) error {
-	env()
+	Env()
 
 	// true -> serious error
 	if MoveAndCount(subscriptionPairs, false) {
