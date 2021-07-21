@@ -24,7 +24,7 @@ var iqMutex sync.Mutex
 
 var projectId = ""
 var nbrPublishWorkers = 32
-func env() error {
+func Env() error {
 	var err error
 	projectId = os.Getenv("PROJECT_ID")
 

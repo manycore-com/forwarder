@@ -91,7 +91,7 @@ func TestMoveToIndividual(t *testing.T) {
 
 	forwarderRedis.Init()
 
-	err := env()
+	err := Env()
 	assert.NoError(t, err, "So sad now")
 	err = forwarderPause.Env()
 	assert.NoError(t, err, "So sad now2")
@@ -153,7 +153,7 @@ func TestX(t *testing.T) {
 
 	forwarderRedis.Init()
 
-	err := env()
+	err := Env()
 	assert.NoError(t, err, "So sad now")
 
 
