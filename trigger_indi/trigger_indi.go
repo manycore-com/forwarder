@@ -16,8 +16,6 @@ import (
 
 var maxNbrMessagesPolled = 64 // This should be the same in forwarder!
 var subscriptionTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
-var triggerTopicTemplate = ""
-var triggerTopicId = ""
 var triggerSubscriptionId = ""
 var projectId = ""
 var devprod = ""
@@ -48,16 +46,6 @@ func env() error {
 		if 1000 < maxNbrMessagesPolled {
 			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be max 1000: %v", maxNbrMessagesPolled)
 		}
-	}
-
-	triggerTopicTemplate = os.Getenv("TRIGGER_TOPIC_TEMPLATE")
-	if "" == triggerTopicTemplate {
-		return fmt.Errorf("mandatory TRIGGER_TOPIC_TEMPLATE environment variable missing")
-	}
-
-	triggerTopicId = os.Getenv("TRIGGER_TOPIC")
-	if "" == triggerTopicId {
-		return fmt.Errorf("mandatory TRIGGER_TOPIC environment variable missing")
 	}
 
 	triggerSubscriptionId = os.Getenv("TRIGGER_SUBSCRIPTION_ID")
