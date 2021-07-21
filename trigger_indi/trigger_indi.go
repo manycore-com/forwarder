@@ -188,6 +188,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 		}
 
 		if currentPricessingSize < cfg.MaxConcurrentFwd {
+
 			startCapacity := cfg.MaxConcurrentFwd - currentPricessingSize
 			var nbrToStart int
 			if currentQueueSize > startCapacity {
@@ -218,18 +219,18 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 				// Update nbr processing for this endpoint
 				nbr, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(endPointId), nbrItems)
 				if nil != err {
-					fmt.Printf("forwarder.trigger_indi.TriggerIndi() Failed to increase redis FWD_IQ_PS_# by %d. endPoint %d: %v\n", endPointId, nbrItems, err)
+					fmt.Printf("forwarder.trigger_indi.TriggerIndi() Failed to increase redis FWD_IQ_PS_%d by %d: %v\n", endPointId, nbrItems, err)
 					break
 				}
-				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_PS_# set to %d for endPoint %d\n", nbr, endPointId)
+				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_PS_%d increased by %d and set to %d\n", endPointId, nbrItems, nbr)
 
 				// update queue size for this endpoint. We count messages either as processing or on queue.
 				nbr, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), 0 - nbrItems)
 				if nil != err {
-					fmt.Printf("forwarder.trigger_indi.TriggerIndi() Failed to decrease redis FWD_IQ_QS_# by %d. endPoint %d: %v\n", endPointId, nbrItems, err)
+					fmt.Printf("forwarder.trigger_indi.TriggerIndi() Failed to decrease redis FWD_IQ_QS_%d by %d: %v\n", endPointId, nbrItems, err)
 					break
 				}
-				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_QS_# set to %d for endPoint %d\n", nbr, endPointId)
+				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_QS_%d increased by %d and set to %d\n", endPointId, nbrItems, nbr)
 			}
 		}
 	}
