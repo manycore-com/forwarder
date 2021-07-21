@@ -16,7 +16,7 @@ import (
 
 var maxNbrMessagesPolled = 64 // This should be the same in forwarder!
 var subscriptionTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
-var triggerSubscriptionId = ""
+var triggerTopicId = ""
 var projectId = ""
 var devprod = ""
 var nbrPublishWorkers = 32
@@ -27,9 +27,14 @@ func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	devprod = os.Getenv("DEV_OR_PROD")
 	subscriptionTemplate = os.Getenv("SUBSCRIPTION_TEMPLATE")
+	triggerTopicId = os.Getenv("TRIGGER_TOPIC_ID")
 
 	if "" == subscriptionTemplate {
 		return fmt.Errorf("mandatory SUBSCRIPTION_TEMPLATE environment variable missing")
+	}
+
+	if "" == triggerTopicId {
+		return fmt.Errorf("mandatory TRIGGER_TOPIC_ID environment variable missing")
 	}
 
 	// This name is not great, but to keep it consistent with the naming in Forwarder
@@ -46,11 +51,6 @@ func env() error {
 		if 1000 < maxNbrMessagesPolled {
 			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be max 1000: %v", maxNbrMessagesPolled)
 		}
-	}
-
-	triggerSubscriptionId = os.Getenv("TRIGGER_SUBSCRIPTION_ID")
-	if "" == triggerSubscriptionId {
-		return fmt.Errorf("mandatory TRIGGER_SUBSCRIPTION_ID environment variable missing")
 	}
 
 	if "" != os.Getenv("NBR_PUBLISH_WORKER") {
@@ -144,7 +144,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	err := env()
 
 	if nil != err {
-		return fmt.Errorf("forwarder.trigger.Trigger() is mis configured: %v", err)
+		return fmt.Errorf("forwarder.trigger.TriggerIndi() is mis configured: %v", err)
 	}
 
 	fmt.Printf("forwarder.trigger.TriggerIndi(%s) Entry: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
