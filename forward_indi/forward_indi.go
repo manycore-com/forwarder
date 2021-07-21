@@ -20,8 +20,8 @@ import (
 )
 
 var projectId = ""
+var hashId = 0
 var inSubscriptionTemplate = ""
-var outQueueTopicId = ""
 var minAgeSecs = -1 // No delay!
 var devprod = ""    // Optional: We use dev for development, devprod for live test, prod for live
 var nbrAckWorkers = 32
@@ -36,7 +36,6 @@ var nextQueueTopicId = ""
 func env() error {
 	projectId = os.Getenv("PROJECT_ID")
 	inSubscriptionTemplate = os.Getenv("IN_SUBSCRIPTION_TEMPLATE")
-	outQueueTopicId = os.Getenv("OUT_QUEUE_TOPIC_ID")
 
 	if projectId == "" {
 		return fmt.Errorf("missing PROJECT_ID environment variable")
@@ -165,15 +164,18 @@ func env() error {
 	return nil
 }
 
-func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, failureWaitGroup *sync.WaitGroup, nextTopicId string, secondsThresholdToNextQueue int, nextQueueTopicId string) {
-	var nextQueueIfLt = time.Now().Unix() - int64(secondsThresholdToNextQueue)
+func asyncFailureProcessing(
+	pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
+	failureWaitGroup *sync.WaitGroup,
+	outTopicIds [3]string,
+	outThresholds [3]int64) {
 
 	for i:=0; i<nbrPublishWorkers; i++ {
 		failureWaitGroup.Add(1)
 		go func(idx int, failureWaitGroup *sync.WaitGroup) {
 			defer failureWaitGroup.Done()
 
-			ctx1, client, nextForwardTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, nextTopicId)
+			ctx1, client, err := forwarderPubsub.SetupClient(projectId)
 			if nil != client {
 				defer client.Close()
 			}
@@ -184,53 +186,43 @@ func asyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.PubSubEleme
 				return
 			}
 
-			var ctx2 *context.Context
-			var client2 *pubsub.Client
-			var nextQueueTopic *pubsub.Topic
-			if "" != nextQueueTopicId && secondsThresholdToNextQueue > 0 {
-				ctx2, client2, nextQueueTopic, err = forwarderPubsub.SetupClientAndTopic(projectId, nextQueueTopicId)
-				if nil != client2 {
-					defer client2.Close()
-				}
-
-				if err != nil {
-					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Critical Error: Failed to instantiate Client2: %v\n", devprod, idx, err)
-					secondsThresholdToNextQueue = -1
-				}
-			}
-
+			topicIdToTopic := map[string]*pubsub.Topic{}
 			for {
 				elem := <- *pubsubFailureChan
+
 				if nil == elem {
 					//fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): done.\n", devprod, idx)
 					break
 				}
 
-				if "" == nextTopicId {
-					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Failure: too many errors: %#v\n", devprod, idx, elem)
+				var messageAge = time.Now().Unix() - elem.Ts
+				var outQueueTopicId = ""
+				var found = false
+				for offs, topicThreshold := range outThresholds {
+					if messageAge >= topicThreshold {
+						found = true
+						outQueueTopicId = outTopicIds[offs]
+					}
+				}
+
+				if ! found {
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing() wrong age:%d, moving to first queue", messageAge)
+					outQueueTopicId = outTopicIds[2]
+				}
+
+				if _, ok := topicIdToTopic[outQueueTopicId]; ! ok {
+					topicIdToTopic[outQueueTopicId] = client.Topic(outQueueTopicId)
+				}
+				var outTopic = topicIdToTopic[outQueueTopicId]
+
+				err = forwarderPubsub.PushAndWaitElemToPubsub(ctx1, outTopic, elem)
+				if err != nil {
+					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
+					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
 					continue
 				}
 
-				if elem.Ts < nextQueueIfLt && 0 < secondsThresholdToNextQueue && "" != nextQueueTopicId {
-					// It's time to go to the next queue
-					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx2, nextQueueTopic, elem)
-					if err != nil {
-						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-						fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v (next queue)\n", devprod, idx, nextQueueTopicId, err)
-						continue
-					}
-
-					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v (next queue)\n", devprod, idx, nextQueueTopicId, elem)
-				} else {
-					err = forwarderPubsub.PushAndWaitElemToPubsub(ctx1, nextForwardTopic, elem)
-					if err != nil {
-						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-						fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, nextTopicId, err)
-						continue
-					}
-
-					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, nextTopicId, elem)
-				}
+				fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, outQueueTopicId, elem)
 			}
 		} (i, failureWaitGroup)
 	}
@@ -315,7 +307,7 @@ func cleanup() {
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
-func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
+func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64) error {
 	err := env()
 	if nil != err {
 		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
@@ -357,7 +349,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId in
 	defer close(pubsubForwardChan)
 	var forwardWaitGroup sync.WaitGroup
 
-	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outQueueTopicId, secondsThresholdToNextQueue, nextQueueTopicId)
+	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outTopicIds, outThresholds)
 
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 

@@ -255,7 +255,7 @@ func cleanup() {
 func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.fanout_indi.FanoutIndi(h%d): webhook responder is mis configured: %v", hashId, err)
+		return fmt.Errorf("forwarder.fanout_indi.FanoutIndi(): webhook responder is mis configured: %v", err)
 	}
 
 	defer cleanup()
@@ -263,18 +263,18 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d): Db check failed: %v\n", hashId, err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): Db check failed: %v\n", err)
 		return err
 	}
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) We're in PAUSE\n", hashId)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi() We're in PAUSE\n")
 		return nil
 	}
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d): Failed to init Redis: %v\n", hashId, err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): Failed to init Redis: %v\n", err)
 		return err
 	}
 
@@ -297,7 +297,7 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to receive events: %v\n", hashId, err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi() failed to receive events: %v\n", err)
 	}
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
@@ -307,19 +307,19 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 		_, err = forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
 		if err != nil {
 			// No point in returning an error here. 
-			fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to add active endpoint: %v\n", hashId, err)
+			fmt.Printf("forwarder.fanout_indi.FanoutIndi() failed to add active endpoint: %v\n", err)
 		}
 
 		// Increase FWD_IQ_QS_#
 		_, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), count)
 		if nil != err {
-			fmt.Printf("forwarder.fanout_indi.FanoutIndi(h%d) failed to increase queues size in redis: %v\n", hashId, err)
+			fmt.Printf("forwarder.fanout_indi.FanoutIndi() failed to increase queues size in redis: %v\n", err)
 		}
 	}
 
 	nbrReceived, _, nbrLost, _ := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.fanout_indi.Fanout(h%d): done. v%s # received: %d, # drop: %d,  Memstats: %s\n", hashId, forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.fanout_indi.FanoutIndi(): done. v%s # received: %d, # drop: %d,  Memstats: %s\n", forwarderCommon.PackageVersion, nbrReceived, nbrLost, forwarderStats.GetMemUsageStr())
 
 	return err
 }

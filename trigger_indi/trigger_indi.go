@@ -14,9 +14,9 @@ import (
 	"sync"
 )
 
-var maxNbrMessagesPolled = 64  // This should be the same in forwarder!
-var destTopicTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
-var subscriptionToProcess = ""
+var maxNbrMessagesPolled = 64 // This should be the same in forwarder!
+var subscriptionTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
+var triggerTopicTemplate = ""
 var triggerTopicId = ""
 var triggerSubscriptionId = ""
 var projectId = ""
@@ -28,10 +28,10 @@ func env() error {
 
 	projectId = os.Getenv("PROJECT_ID")
 	devprod = os.Getenv("DEV_OR_PROD")
-	destTopicTemplate = os.Getenv("DEST_TOPIC_TEMPLATE")
+	subscriptionTemplate = os.Getenv("SUBSCRIPTION_TEMPLATE")
 
-	if "" == destTopicTemplate {
-		return fmt.Errorf("mandatory DEST_TOPIC_TEMPLATE environment variable missing")
+	if "" == subscriptionTemplate {
+		return fmt.Errorf("mandatory SUBSCRIPTION_TEMPLATE environment variable missing")
 	}
 
 	// This name is not great, but to keep it consistent with the naming in Forwarder
@@ -50,9 +50,9 @@ func env() error {
 		}
 	}
 
-	subscriptionToProcess = os.Getenv("SUBSCRIPTION_TO_PROCESS")
-	if "" == subscriptionToProcess {
-		return fmt.Errorf("mandatory SUBSCRIPTION_TO_PROCESS environment variable missing")
+	triggerTopicTemplate = os.Getenv("TRIGGER_TOPIC_TEMPLATE")
+	if "" == triggerTopicTemplate {
+		return fmt.Errorf("mandatory TRIGGER_TOPIC_TEMPLATE environment variable missing")
 	}
 
 	triggerTopicId = os.Getenv("TRIGGER_TOPIC")
@@ -130,7 +130,7 @@ func asyncSendTriggerPackages(channel *chan *TriggerIndiElement, waitGroup *sync
 
 				var trgmsg = fmt.Sprintf("{\"EndPointId\":%d, \"NbrItems\":%d}", msg.EndPointId, msg.NbrItems)
 
-				var outQueueTopicId = fmt.Sprintf(destTopicTemplate, msg.EndPointId)
+				var outQueueTopicId = fmt.Sprintf(subscriptionTemplate, msg.EndPointId)
 				if _, ok := endPointIdToTopic[msg.EndPointId]; ! ok {
 					endPointIdToTopic[msg.EndPointId] = client.Topic(outQueueTopicId)
 				}
