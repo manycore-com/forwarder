@@ -361,8 +361,10 @@ func reCalculateUsersQueueSizes_(endPointIdToSubsId map[int]string) error {
 		if val, ok := subsToCount[subsName]; ok {
 			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), val)
 			forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
+			fmt.Printf("forwarder.individual_queues.reCalculateUsersQueueSizes_() endpoint:%d qs:%d\n", endPointId, val)
 		} else {
 			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), int64(0))
+			fmt.Printf("forwarder.individual_queues.reCalculateUsersQueueSizes_() endpoint:%d qs:%d\n", endPointId, 0)
 		}
 
 		// Assume nothing is currently processing. This method is only called after a certain time of Pause.
@@ -398,7 +400,9 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 
 	var endPointIdToSubsId = make(map[int]string)
 	for _, endPointId := range endPointIds {
-		endPointIdToSubsId[endPointId] = fmt.Sprintf(subscriptionTemplate, endPointId)
+		subs := fmt.Sprintf(subscriptionTemplate, endPointId)
+		endPointIdToSubsId[endPointId] = subs
+		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes() will check %s\n", subs)
 	}
 
 	fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
