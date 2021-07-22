@@ -144,7 +144,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	err := env()
 
 	if nil != err {
-		return fmt.Errorf("forwarder.trigger.TriggerIndi() is mis configured: %v", err)
+		return fmt.Errorf("forwarder.trigger.TriggerIndi() v%s is mis configured: %v", forwarderCommon.PackageVersion, err)
 	}
 
 	fmt.Printf("forwarder.trigger.TriggerIndi(%s) Entry: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
@@ -152,14 +152,14 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		fmt.Printf("forwarder.trigger_indi.TriggerIndi(): Failed to init Redis: %v\n", err)
+		fmt.Printf("forwarder.trigger_indi.TriggerIndi(): v%s Failed to init Redis: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
 	// Note that the active endpoint set is re-created hourly, and updated by forwarder_indi
 	endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
 	if nil != err {
-		return fmt.Errorf("forwarder.trigger_indi.TriggerIndi() failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis")
+		return fmt.Errorf("forwarder.trigger_indi.TriggerIndi() v%s failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis", forwarderCommon.PackageVersion)
 	}
 
 	messageQueue := make(chan *TriggerIndiElement, nbrPublishWorkers)

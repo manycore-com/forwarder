@@ -292,7 +292,7 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 
 	err := Env()
 	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to setup Env: %v\n", err)
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Failed to setup Env: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
@@ -300,7 +300,7 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to init Redis: %v\n", err)
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Failed to init Redis: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
@@ -309,12 +309,12 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): Db check failed: %v\n", err)
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Db check failed: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.fanout.Fanout() We're in PAUSE\n")
+		fmt.Printf("forwarder.IQ.MoveToIndividual() v%s We're in PAUSE\n", forwarderCommon.PackageVersion)
 		return nil
 	}
 
@@ -337,6 +337,8 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 	}
 
 	writerWaitGroup.Wait()
+
+	fmt.Printf("forwarder.IQ.MoveToIndividual() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
@@ -375,7 +377,7 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 
 	err := Env()
 	if nil != err {
-		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): Failed to setup Env: %v\n", err)
+		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): v%s Failed to setup Env: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
@@ -383,7 +385,7 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): Failed to init Redis: %v\n", err)
+		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): v%s Failed to init Redis: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
@@ -391,13 +393,15 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 
 	endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
 	if nil != err {
-		return fmt.Errorf("forwarder.IQ.ReCalculateUsersQueueSizes() failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis")
+		return fmt.Errorf("forwarder.IQ.ReCalculateUsersQueueSizes() v%s failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis", forwarderCommon.PackageVersion)
 	}
 
 	var endPointIdToSubsId = make(map[int]string)
 	for _, endPointId := range endPointIds {
 		endPointIdToSubsId[endPointId] = fmt.Sprintf(subscriptionTemplate, endPointId)
 	}
+
+	fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
 
 	return reCalculateUsersQueueSizes_(endPointIdToSubsId)
 }

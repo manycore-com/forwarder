@@ -255,7 +255,7 @@ func cleanup() {
 func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.fanout_indi.FanoutIndi(): webhook responder is mis configured: %v", err)
+		return fmt.Errorf("forwarder.fanout_indi.FanoutIndi(): v%s webhook responder is mis configured: %v", forwarderCommon.PackageVersion, err)
 	}
 
 	defer cleanup()
@@ -263,20 +263,20 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): Db check failed: %v\n", err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): v%s Db check failed: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
 	defer forwarderRedis.Cleanup()
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi() We're in PAUSE\n")
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi() v%s We're in PAUSE\n", forwarderCommon.PackageVersion)
 		return nil
 	}
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): Failed to init Redis: %v\n", err)
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): v%s Failed to init Redis: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 

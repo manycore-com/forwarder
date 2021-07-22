@@ -14,7 +14,7 @@ import (
 // git tag v0.9.0
 // git push origin v0.9.0
 
-var PackageVersion = "0.14.8"
+var PackageVersion = "0.14.9"
 
 var smtpHost string
 var smtpPort int

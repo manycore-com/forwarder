@@ -310,7 +310,7 @@ func cleanup() {
 func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64) error {
 	err := env()
 	if nil != err {
-		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(%s, h%d): webhook responder is mis configured: %v", devprod, hashId, err)
+		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(): v%s webhook responder is mis configured: %v", forwarderCommon.PackageVersion, err)
 	}
 
 	defer cleanup()
@@ -318,18 +318,18 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
 	err = forwarderDb.CheckDb()
 	if nil != err {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): Db check failed: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(): v%s Db check failed: %v\n", forwarderCommon.PackageVersion, err)
 		return err
 	}
 
 	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d) We're in PAUSE\n", devprod, hashId)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() v%s We're in PAUSE\n", forwarderCommon.PackageVersion)
 		return nil
 	}
 
 	err = forwarderRedis.Init()
 	if nil != err {
-		return fmt.Errorf("failed to init redis: %v", err)
+		return fmt.Errorf("forwarder.forward_indi.ForwardIndi() v%s failed to init redis: %v", forwarderCommon.PackageVersion, err)
 	}
 	defer forwarderRedis.Cleanup()
 
@@ -338,7 +338,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	var trgmsg forwarderTriggerIndi.TriggerIndiElement
 	err = json.Unmarshal(m.Data, &trgmsg)
 	if nil != err {
-		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(h%d) Error decoding trigger message: %v", hashId, err)
+		return fmt.Errorf("forwarder.forward_indi.ForwardIndi() v%s Error decoding trigger message: %v", forwarderCommon.PackageVersion, err)
 	}
 
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
@@ -358,22 +358,14 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	receivedInTotal, err := forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, trgmsg.NbrItems, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
-		fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): failed to receive events: %v\n", devprod, hashId, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi(): v%s failed to receive events: %v\n", forwarderCommon.PackageVersion, err)
 	}
 
-	val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - trgmsg.NbrItems)
+	val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - receivedInTotal)
 	if nil != err {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi(h%d) failed to decrease FWD_IQ_PS_%d by %d to %d: %v\n", hashId, trgmsg.EndPointId, trgmsg.NbrItems, val, err)
-	}
-
-	var nbrGlitch = trgmsg.NbrItems - receivedInTotal
-	if 0 != nbrGlitch {
-		val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), nbrGlitch)
-		if err != nil {
-			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_PS_%d by %d: %v\n", trgmsg.EndPointId, nbrGlitch, err)
-		} else {
-			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, nbrGlitch, val)
-		}
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to decrease FWD_IQ_PS_%d by %d to %d: %v\n", trgmsg.EndPointId, receivedInTotal, val, err)
+	} else {
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d: %v\n", trgmsg.EndPointId, receivedInTotal, val, err)
 	}
 
 	takeDownAsyncForward(&pubsubForwardChan, &forwardWaitGroup)
@@ -382,7 +374,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
 
-	fmt.Printf("forwarder.forward_indi.ForwardIndi(%s, h%d): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", devprod, hashId, forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.forward_indi.ForwardIndi(): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
