@@ -52,7 +52,7 @@ func TestReCalculateUsersQueueSizes(t *testing.T) {
 		1: "TESTING",
 	}
 
-	err := ReCalculateUsersQueueSizes(context.Background(), forwarderPubsub.PubSubMessage{}, x)
+	err := reCalculateUsersQueueSizes_(x)
 	assert.NoError(t, err, "error")
 }
 

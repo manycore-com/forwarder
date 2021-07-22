@@ -341,25 +341,7 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 	return nil
 }
 
-// ReCalculateUsersQueueSizes is (should be) called after a break. So we can assume we can set currently processing to 0
-func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMessage, endPointIdToSubsId map[int]string) error {
-
-	err := Env()
-	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to setup Env: %v\n", err)
-		return err
-	}
-
-	defer Cleanup()
-
-	err = forwarderRedis.Init()
-	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to init Redis: %v\n", err)
-		return err
-	}
-
-	defer forwarderRedis.Cleanup()
-
+func reCalculateUsersQueueSizes_(endPointIdToSubsId map[int]string) error {
 	var subscriptionIds []string
 	for _, subsId := range endPointIdToSubsId {
 		subscriptionIds = append(subscriptionIds, subsId)
@@ -367,7 +349,7 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 
 	subsToCount, err := forwarderPubsub.CheckNbrItemsPubsubs(projectId, subscriptionIds)
 	if nil != err {
-		return fmt.Errorf("forwarder.individual_queues.ReCalculateUsersQueueSizes() Failed to check queue sizes: %v", err)
+		return fmt.Errorf("forwarder.individual_queues.reCalculateUsersQueueSizes_() Failed to check queue sizes: %v", err)
 	}
 
 	// This is a set with all the endpoint ids we currently want to look at.
@@ -386,4 +368,36 @@ func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMes
 	}
 
 	return nil
+}
+
+// ReCalculateUsersQueueSizes is (should be) called after a break. So we can assume we can set currently processing to 0
+func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMessage, subscriptionTemplate string) error {
+
+	err := Env()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): Failed to setup Env: %v\n", err)
+		return err
+	}
+
+	defer Cleanup()
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.ReCalculateUsersQueueSizes(): Failed to init Redis: %v\n", err)
+		return err
+	}
+
+	defer forwarderRedis.Cleanup()
+
+	endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
+	if nil != err {
+		return fmt.Errorf("forwarder.IQ.ReCalculateUsersQueueSizes() failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis")
+	}
+
+	var endPointIdToSubsId = make(map[int]string)
+	for _, endPointId := range endPointIds {
+		endPointIdToSubsId[endPointId] = fmt.Sprintf(subscriptionTemplate, endPointId)
+	}
+
+	return reCalculateUsersQueueSizes_(endPointIdToSubsId)
 }
