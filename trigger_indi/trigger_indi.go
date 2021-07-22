@@ -187,6 +187,8 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 			continue
 		}
 
+		fmt.Printf("forwarder.trigger_indi.TriggerIndi() endpoint:%d qs:%d ps:%d maxConcurrent:%d\n", endPointId, currentQueueSize, currentPricessingSize, cfg.MaxConcurrentFwd)
+
 		if currentPricessingSize < cfg.MaxConcurrentFwd {
 
 			startCapacity := cfg.MaxConcurrentFwd - currentPricessingSize
