@@ -1,7 +1,6 @@
 package trigger_indi
 
 import (
-	"cloud.google.com/go/pubsub"
 	"context"
 	"fmt"
 	forwarderCommon "github.com/manycore-com/forwarder/common"
@@ -108,7 +107,8 @@ func asyncSendTriggerPackages(channel *chan *TriggerIndiElement, waitGroup *sync
 				return
 			}
 
-			endPointIdToTopic := map[int]*pubsub.Topic{}
+			outTopic := client.Topic(triggerTopicId)
+
 			for {
 				var msg = <- *channel
 				if nil == msg {
@@ -118,15 +118,9 @@ func asyncSendTriggerPackages(channel *chan *TriggerIndiElement, waitGroup *sync
 
 				var trgmsg = fmt.Sprintf("{\"EndPointId\":%d, \"NbrItems\":%d}", msg.EndPointId, msg.NbrItems)
 
-				var outQueueTopicId = fmt.Sprintf(subscriptionTemplate, msg.EndPointId)
-				if _, ok := endPointIdToTopic[msg.EndPointId]; ! ok {
-					endPointIdToTopic[msg.EndPointId] = client.Topic(outQueueTopicId)
-				}
-				var outTopic = endPointIdToTopic[msg.EndPointId]
-
 				err := forwarderPubsub.PushAndWaitJsonStringToPubsub(ctx, outTopic, trgmsg)
 				if err != nil {
-					fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): Failed to publish to trigger topic %s: %v\n", devprod, idx, outQueueTopicId, err)
+					fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): Failed to publish to trigger topic %s: %v\n", devprod, idx, triggerTopicId, err)
 				}
 			}
 
