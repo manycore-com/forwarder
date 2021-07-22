@@ -126,37 +126,6 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 	return cfg, nil
 }
 
-// ReCalculateUsersQueueSizes is (should be) called after a break. So we can assume we can set currently processing to 0
-func ReCalculateUsersQueueSizes(projectID string, endPointIdToSubsId map[int]string) error {
-
-	var subscriptionIds []string
-	for _, subsId := range endPointIdToSubsId {
-		subscriptionIds = append(subscriptionIds, subsId)
-	}
-
-	subsToCount, err := forwarderPubsub.CheckNbrItemsPubsubs(projectID, subscriptionIds)
-	if nil != err {
-		return fmt.Errorf("forwarder.individual_queues.ReCalculateUsersQueueSizes() Failed to check queue sizes: %v", err)
-	}
-
-	// This is a set with all the endpoint ids we currently want to look at.
-	forwarderRedis.Del("FWD_IQ_ACTIVE_ENDPOINTS_SET")
-	for endPointId, subsName := range endPointIdToSubsId {
-
-		if val, ok := subsToCount[subsName]; ok {
-			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), val)
-			forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
-		} else {
-			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), int64(0))
-		}
-
-		// Assume nothing is currently processing. This method is only called after a certain time of Pause.
-		forwarderRedis.SetInt64("FWD_IQ_PS_" + strconv.Itoa(endPointId), int64(0))
-	}
-
-	return nil
-}
-
 func asyncWriterToIndividualQueues(writerChan *chan *forwarderPubsub.PubSubElement,
 	                               writerWaitGroup *sync.WaitGroup,
 	                               destSubscriptionTemplate string) {
@@ -368,6 +337,53 @@ func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sour
 	}
 
 	writerWaitGroup.Wait()
+
+	return nil
+}
+
+// ReCalculateUsersQueueSizes is (should be) called after a break. So we can assume we can set currently processing to 0
+func ReCalculateUsersQueueSizes(ctx context.Context, m forwarderPubsub.PubSubMessage, endPointIdToSubsId map[int]string) error {
+
+	err := Env()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to setup Env: %v\n", err)
+		return err
+	}
+
+	defer Cleanup()
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to init Redis: %v\n", err)
+		return err
+	}
+
+	defer forwarderRedis.Cleanup()
+
+	var subscriptionIds []string
+	for _, subsId := range endPointIdToSubsId {
+		subscriptionIds = append(subscriptionIds, subsId)
+	}
+
+	subsToCount, err := forwarderPubsub.CheckNbrItemsPubsubs(projectId, subscriptionIds)
+	if nil != err {
+		return fmt.Errorf("forwarder.individual_queues.ReCalculateUsersQueueSizes() Failed to check queue sizes: %v", err)
+	}
+
+	// This is a set with all the endpoint ids we currently want to look at.
+	forwarderRedis.Del("FWD_IQ_ACTIVE_ENDPOINTS_SET")
+	for endPointId, subsName := range endPointIdToSubsId {
+
+		if val, ok := subsToCount[subsName]; ok {
+			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), val)
+			forwarderRedis.SetAddMember("FWD_IQ_ACTIVE_ENDPOINTS_SET", endPointId)
+		} else {
+			forwarderRedis.SetInt64("FWD_IQ_QS_" + strconv.Itoa(endPointId), int64(0))
+		}
+
+		// Assume nothing is currently processing. This method is only called after a certain time of Pause.
+		forwarderRedis.SetInt64("FWD_IQ_PS_" + strconv.Itoa(endPointId), int64(0))
+	}
 
 	return nil
 }

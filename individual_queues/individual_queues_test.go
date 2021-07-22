@@ -43,6 +43,7 @@ func TestGetEndPointData(t *testing.T) {
 
 func TestReCalculateUsersQueueSizes(t *testing.T) {
 	forwarderTest.SetEnvVars()
+	Env()
 	forwarderRedis.Init()
 	defer forwarderRedis.Cleanup()
 	defer Cleanup()
@@ -51,7 +52,7 @@ func TestReCalculateUsersQueueSizes(t *testing.T) {
 		1: "TESTING",
 	}
 
-	err := ReCalculateUsersQueueSizes(os.Getenv("PROJECT_ID"), x)
+	err := ReCalculateUsersQueueSizes(context.Background(), forwarderPubsub.PubSubMessage{}, x)
 	assert.NoError(t, err, "error")
 }
 
