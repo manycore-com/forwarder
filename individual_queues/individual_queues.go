@@ -23,6 +23,7 @@ var touchedForwardId = make(map[int]bool)
 var iqMutex sync.Mutex
 
 var projectId = ""
+var hashId = 0
 var nbrPublishWorkers = 32
 func Env() error {
 	var err error
@@ -318,7 +319,35 @@ func PullAllSubscriptions(sourceSubscriptionIds []string, writerChan *chan *forw
 	return seriousError
 }
 
-func MoveToIndividual(sourceSubscriptionIds []string, destSubscriptionTemplate string) error {
+func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sourceSubscriptionIds []string, destSubscriptionTemplate string) error {
+
+	err := Env()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to setup Env: %v\n", err)
+		return err
+	}
+
+	defer Cleanup()
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): Failed to init Redis: %v\n", err)
+		return err
+	}
+
+	defer forwarderRedis.Cleanup()
+
+	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
+	err = forwarderDb.CheckDb()
+	if nil != err {
+		fmt.Printf("forwarder.IQ.MoveToIndividual(): Db check failed: %v\n", err)
+		return err
+	}
+
+	if forwarderDb.IsPaused(hashId) {
+		fmt.Printf("forwarder.fanout.Fanout() We're in PAUSE\n")
+		return nil
+	}
 
 	// Setup writer to destination
 	writerChan := make(chan *forwarderPubsub.PubSubElement, 2000)

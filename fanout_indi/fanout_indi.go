@@ -267,6 +267,8 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 		return err
 	}
 
+	defer forwarderRedis.Cleanup()
+
 	if forwarderDb.IsPaused(hashId) {
 		fmt.Printf("forwarder.fanout_indi.FanoutIndi() We're in PAUSE\n")
 		return nil
@@ -277,6 +279,7 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): Failed to init Redis: %v\n", err)
 		return err
 	}
+
 
 	// The webhook posts to the topic feeding inSubscriptionId
 

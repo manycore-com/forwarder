@@ -1,6 +1,7 @@
 package individual_queues
 
 import (
+	"context"
 	"fmt"
 	forwarderPause "github.com/manycore-com/forwarder/pause"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
@@ -139,7 +140,7 @@ func TestMoveToIndividual(t *testing.T) {
 	fmt.Printf("Sleeping 30s before trying to poll the lot")
 	time.Sleep(time.Second * 30)
 
-	err = MoveToIndividual([]string{"TESTING", "TESTING2"}, "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d")
+	err = MoveToIndividual(context.Background(), forwarderPubsub.PubSubMessage{}, []string{"TESTING", "TESTING2"}, "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d")
 	assert.NoError(t, err, "seriously wrong")
 
 }
