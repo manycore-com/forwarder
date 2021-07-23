@@ -39,7 +39,7 @@ func CheckNbrItemsPubsubs(projectID string, subscriptionIds []string) (map[strin
 	var subscriptionFilterString string
 	for idx, item := range subscriptionIds {
 		if 0 < idx {
-			subscriptionFilterString += " AND "
+			subscriptionFilterString += " OR "
 		}
 
 		subscriptionFilterString += `resource.labels.subscription_id="` + item + `"`
