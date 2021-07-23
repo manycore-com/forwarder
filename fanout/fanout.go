@@ -259,7 +259,7 @@ func Fanout(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) er
 	asyncFanout(&pubsubForwardChan, &forwardWaitGroup)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
+	_, err = forwarderPubsub.ReceiveEventsFromPubsub(projectId, inSubscriptionId, minAge, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.fanout.Fanout(%s, h%d) failed to receive events: %v\n", devprod, hashId, err)

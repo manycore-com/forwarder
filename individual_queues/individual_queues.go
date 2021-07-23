@@ -25,6 +25,9 @@ var iqMutex sync.Mutex
 var projectId = ""
 var hashId = 0
 var nbrPublishWorkers = 32
+var maxNbrMessagesPolled = 64
+var maxPubsubQueueIdleMs = 1200
+var maxOutstandingMessages = 32
 func Env() error {
 	var err error
 	projectId = os.Getenv("PROJECT_ID")
@@ -42,6 +45,52 @@ func Env() error {
 
 		if 1000 < nbrPublishWorkers {
 			return fmt.Errorf("optional NBR_PUBLISH_WORKER environent should not be over 1000: %v", nbrPublishWorkers)
+		}
+	}
+
+	// Optional: How many go threads should send ACK on received messages?
+	if "" != os.Getenv("MAX_NBR_MESSAGES_POLLED") {
+		maxNbrMessagesPolled, err = strconv.Atoi(os.Getenv("MAX_NBR_MESSAGES_POLLED"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_NBR_MESSAGES_POLLED: %v", err)
+		}
+
+		if 1 > maxNbrMessagesPolled {
+			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be at least 1: %v", maxNbrMessagesPolled)
+		}
+
+		if 1000 < maxNbrMessagesPolled {
+			return fmt.Errorf("optional MAX_NBR_MESSAGES_POLLED environent variable must be max 1000: %v", maxNbrMessagesPolled)
+		}
+	}
+
+	if "" != os.Getenv("MAX_PUBSUB_QUEUE_IDLE_MS") {
+		maxPubsubQueueIdleMs, err = strconv.Atoi(os.Getenv("MAX_PUBSUB_QUEUE_IDLE_MS"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_PUBSUB_QUEUE_IDLE_MS: %v", err)
+		}
+
+		if 100 > maxPubsubQueueIdleMs {
+			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be at least 100: %v\n", maxPubsubQueueIdleMs)
+		}
+
+		if 10000 < maxPubsubQueueIdleMs {
+			return fmt.Errorf("optional MAX_PUBSUB_QUEUE_IDLE_MS environent variable must be max 10000: %v\n", maxPubsubQueueIdleMs)
+		}
+	}
+
+	if "" != os.Getenv("MAX_OUTSTANDING_MESSAGES") {
+		maxOutstandingMessages, err := strconv.Atoi(os.Getenv("MAX_OUTSTANDING_MESSAGES"))
+		if nil != err {
+			return fmt.Errorf("failed to parse integer MAX_OUTSTANDING_MESSAGES: %v", err)
+		}
+
+		if 1 > maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be at least 1: %v\n", maxOutstandingMessages)
+		}
+
+		if 100 < maxOutstandingMessages {
+			return fmt.Errorf("optional MAX_OUTSTANDING_MESSAGES environent variable must be max 100: %v\n", maxOutstandingMessages)
 		}
 	}
 
@@ -286,61 +335,6 @@ func PullAllSubscriptions(sourceSubscriptionIds []string, writerChan *chan *forw
 	fmt.Printf("forwarder.IQ.PullAllSubscriptions() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, memUsage)
 
 	return seriousError
-}
-
-func MoveToIndividual(ctx context.Context, m forwarderPubsub.PubSubMessage, sourceSubscriptionIds []string, destSubscriptionTemplate string) error {
-
-	err := Env()
-	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Failed to setup Env: %v\n", forwarderCommon.PackageVersion, err)
-		return err
-	}
-
-	defer Cleanup()
-
-	err = forwarderRedis.Init()
-	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Failed to init Redis: %v\n", forwarderCommon.PackageVersion, err)
-		return err
-	}
-
-	defer forwarderRedis.Cleanup()
-
-	// Check if DB is happy. If it's not, then don't do anything this time and retry on next tick.
-	err = forwarderDb.CheckDb()
-	if nil != err {
-		fmt.Printf("forwarder.IQ.MoveToIndividual(): v%s Db check failed: %v\n", forwarderCommon.PackageVersion, err)
-		return err
-	}
-
-	if forwarderDb.IsPaused(hashId) {
-		fmt.Printf("forwarder.IQ.MoveToIndividual() v%s We're in PAUSE\n", forwarderCommon.PackageVersion)
-		return nil
-	}
-
-	// Setup writer to destination
-	writerChan := make(chan *forwarderPubsub.PubSubElement, 2000)
-	defer close(writerChan)
-	var writerWaitGroup sync.WaitGroup
-
-	asyncWriterToIndividualQueues(&writerChan, &writerWaitGroup, destSubscriptionTemplate)
-
-	// Poll everything
-	seriousError := PullAllSubscriptions(sourceSubscriptionIds, &writerChan)
-	if seriousError {
-		// TODO add said error
-		return fmt.Errorf("forwarder.IQ.MoveToIndividual() Error: Serious error")
-	}
-
-	for i:=0; i<nbrPublishWorkers; i++ {
-		writerChan <- nil
-	}
-
-	writerWaitGroup.Wait()
-
-	fmt.Printf("forwarder.IQ.MoveToIndividual() ok. v%s, Memstats: %s\n", forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
-
-	return nil
 }
 
 func reCalculateUsersQueueSizes_(endPointIdToSubsId map[int]string) error {

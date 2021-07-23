@@ -47,7 +47,6 @@ func (elem *PubSubElement) IsSame(uuid *PubSubElementUUID) bool {
 // I don't know how to "give me 1000 objects in max 60s". It seems to always wait for 60s. So I do a small timeout
 // and increase it if there are actual messages.
 func receiveEventsFromPubsubPoller(
-	devprod string,
 	projectId string,
 	subscriptionId string,
 	pubsubForwardChan *chan *PubSubElement,
@@ -142,7 +141,7 @@ func receiveEventsFromPubsubPoller(
 				*pubsubForwardChan <- &elem
 			}
 		} else {
-			fmt.Printf("receiveEventsFromPubsubPoller(%s): Error: failed to Unmarshal: %v\n", devprod, err)
+			fmt.Printf("receiveEventsFromPubsubPoller(): Error: failed to Unmarshal: %v\n", err)
 			msg.Ack()  // Valid or not, Ack to get rid of it
 		}
 
@@ -164,7 +163,6 @@ func receiveEventsFromPubsubPoller(
 // ReceiveEventsFromPubsub is synchronous in it's nature. It will lock up main thread. Do not call until main pipeline
 // is setup or it might deadlock if the buffered chan gets full.
 func ReceiveEventsFromPubsub(
-	devprod string,
 	projectId string,
 	subscriptionId string,
 	minAgeSecs int,
@@ -179,13 +177,13 @@ func ReceiveEventsFromPubsub(
 
 	nbrItemsInt64, checkErr := CheckNbrItemsPubsub(projectId, subscriptionId)
 	if checkErr == nil {
-		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): queue size: %v\n", devprod, nbrItemsInt64)
+		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(): queue size: %v\n", nbrItemsInt64)
 		pollMax = int(nbrItemsInt64)
 		if pollMax > maxPollPerRun {
 			pollMax = maxPollPerRun
 		}
 	} else {
-		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): Failed to check queue size for %s: err=%v\n", devprod, subscriptionId, checkErr)
+		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(): Failed to check queue size for %s: err=%v\n", subscriptionId, checkErr)
 		pollMax = maxPollPerRun
 	}
 
@@ -196,7 +194,7 @@ func ReceiveEventsFromPubsub(
 	var nbrReceived int = 0
 
 	var timeout int = 30
-	nbrReceived, err = receiveEventsFromPubsubPoller(devprod, projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
+	nbrReceived, err = receiveEventsFromPubsubPoller(projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, 0, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
 
 	nbrReceivedTotal += nbrReceived
 
@@ -212,15 +210,15 @@ func ReceiveEventsFromPubsub(
 				defer client.Close()
 			}
 
-			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(%s): 2nd run: %d > %d\n", devprod, (pollMax * 2 / 3 ), nbrReceivedTotal)
+			fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(): 2nd run: %d > %d\n", (pollMax * 2 / 3 ), nbrReceivedTotal)
 
 			timeout = 15
-			nbrReceived, err = receiveEventsFromPubsubPoller(devprod, projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
+			nbrReceived, err = receiveEventsFromPubsubPoller(projectId, subscriptionId, pubsubForwardChan, timeout, minAgeSecs, nbrReceivedTotal, pollMax - nbrReceivedTotal, maxPubsubQueueIdleMs, maxOutstandingMessages)
 			nbrReceivedTotal += nbrReceived
 		}
 	}
 
-	fmt.Printf("receiveEventsFromPubsub(%s): done. NbrReceived=%d, err=%v\n", devprod, nbrReceivedTotal, err)
+	fmt.Printf("receiveEventsFromPubsub(): done. NbrReceived=%d, err=%v\n", nbrReceivedTotal, err)
 
 	return nbrReceivedTotal, nil
 }

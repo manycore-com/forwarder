@@ -103,7 +103,7 @@ func asyncSendTriggerPackages(channel *chan *TriggerIndiElement, waitGroup *sync
 			}
 
 			if err != nil {
-				fmt.Printf("forwarder.fanout.asyncFanout(%s,%d): Critical Error: Failed to instantiate Topic Client: %v\n", devprod, idx, err)
+				fmt.Printf("forwarder.trigger_indi.asyncFanout(%d): Critical Error: Failed to instantiate Topic Client: %v\n", idx, err)
 				return
 			}
 
@@ -120,7 +120,7 @@ func asyncSendTriggerPackages(channel *chan *TriggerIndiElement, waitGroup *sync
 
 				err := forwarderPubsub.PushAndWaitJsonStringToPubsub(ctx, outTopic, trgmsg)
 				if err != nil {
-					fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): Failed to publish to trigger topic %s: %v\n", devprod, idx, triggerTopicId, err)
+					fmt.Printf("forwarder.trigger_indi.asyncFanout(%d): Failed to publish to trigger topic %s: %v\n", idx, triggerTopicId, err)
 				}
 			}
 
@@ -237,7 +237,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 
 	waitGroup.Wait()
 
-	fmt.Printf("forwarder.trigger.TriggerIndi(%s) done! v%s Memstats: %s\n", devprod, forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.trigger_indi.TriggerIndi(%s) done! v%s Memstats: %s\n", devprod, forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
 
 	return nil
 }

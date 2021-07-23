@@ -15,7 +15,7 @@ func TestReceiveEventsFromPubsub(t *testing.T) {
 	defer close(pubsubForwardChan)
 	//var forwardWaitGroup sync.WaitGroup
 
-	nbrReceived, err := ReceiveEventsFromPubsub(os.Getenv("DEV_OR_PROD"), os.Getenv("PROJECT_ID"), os.Getenv("OUT_QUEUE_TOPIC_ID"), 0, 4, &pubsubForwardChan, 250, 32)
+	nbrReceived, err := ReceiveEventsFromPubsub(os.Getenv("PROJECT_ID"), os.Getenv("OUT_QUEUE_TOPIC_ID"), 0, 4, &pubsubForwardChan, 250, 32)
 	if nil != err {
 		fmt.Printf("forwarder.pubsub.TestReceiveEventsFromPubsub(): Failed to poll: %v\n", err)
 	} else {
@@ -216,7 +216,7 @@ func TestToConsumeTheLot(t *testing.T) {
 		}
 
 		// This one starts and takes down the ackQueue
-		nbrReceived, err := ReceiveEventsFromPubsub("unittest", os.Getenv("PROJECT_ID"), SUBSCRIPTION, 0, maxNbrMessagesPolled, &pubsubForwardChan, 1200, 64)
+		nbrReceived, err := ReceiveEventsFromPubsub(os.Getenv("PROJECT_ID"), SUBSCRIPTION, 0, maxNbrMessagesPolled, &pubsubForwardChan, 1200, 64)
 		if nil != err {
 			// Super important too.
 			fmt.Printf("forwarder.forward.Forward(%s) failed to receive events: %v\n", "unittest", err)

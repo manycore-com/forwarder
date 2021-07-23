@@ -355,7 +355,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	// This one starts and takes down the ackQueue
 	var inSubscriptionId = fmt.Sprintf(inSubscriptionTemplate, trgmsg.EndPointId)
-	receivedInTotal, err := forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, trgmsg.NbrItems, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
+	receivedInTotal, err := forwarderPubsub.ReceiveEventsFromPubsub(projectId, inSubscriptionId, minAgeSecs, trgmsg.NbrItems, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.forward_indi.ForwardIndi(): v%s failed to receive events: %v\n", forwarderCommon.PackageVersion, err)

@@ -350,7 +350,7 @@ func Forward(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int) e
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
 	// This one starts and takes down the ackQueue
-	_, err = forwarderPubsub.ReceiveEventsFromPubsub(devprod, projectId, inSubscriptionId, minAgeSecs, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
+	_, err = forwarderPubsub.ReceiveEventsFromPubsub(projectId, inSubscriptionId, minAgeSecs, maxNbrMessagesPolled, &pubsubForwardChan, maxPubsubQueueIdleMs, maxOutstandingMessages)
 	if nil != err {
 		// Super important too.
 		fmt.Printf("forwarder.forward.Forward(%s, h%d): failed to receive events: %v\n", devprod, hashId, err)

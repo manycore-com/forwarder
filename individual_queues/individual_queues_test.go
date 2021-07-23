@@ -1,19 +1,13 @@
 package individual_queues
 
 import (
-	"context"
 	"fmt"
-	forwarderPause "github.com/manycore-com/forwarder/pause"
-	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderTest "github.com/manycore-com/forwarder/test"
 	"github.com/stretchr/testify/assert"
-	"math/rand"
 	"os"
 	"strconv"
-	"sync"
 	"testing"
-	"time"
 )
 
 func TestGetEndPointData(t *testing.T) {
@@ -74,76 +68,6 @@ func TestTouchForwardId(t *testing.T) {
 	x, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
 	assert.NoError(t, err, "failed to get set")
 	assert.Equal(t, 2, len(x))
-}
-
-func takeDownAsync(nbrWorkers int, writeBackWaitGroup *sync.WaitGroup, writeBackChan *chan *forwarderPubsub.PubSubElement) {
-	for i:=0; i<nbrWorkers; i++ {
-		*writeBackChan <- nil
-	}
-
-	writeBackWaitGroup.Wait()
-}
-
-func TestMoveToIndividual(t *testing.T) {
-	forwarderTest.SetEnvVars()
-	os.Setenv("PROJECT_ID", os.Getenv("FORWARDER_TEST_PROJECT_ID"))
-	os.Setenv("GCP_LOCATION", os.Getenv("FORWARDER_TEST_GCP_LOCATION"))
-	os.Setenv("NBR_HASH", "1")
-	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", os.Getenv("FORWARDER_TEST_GAE_CREDENTIALS_JOBS"))
-
-	forwarderRedis.Init()
-
-	err := Env()
-	assert.NoError(t, err, "So sad now")
-	err = forwarderPause.Env()
-	assert.NoError(t, err, "So sad now2")
-
-	nbrWriteBackWorkers := 20
-
-	// Put some shit on TESTING and TESTING2
-	// Setup writeback queue
-	writeBackChan := make(chan *forwarderPubsub.PubSubElement, nbrWriteBackWorkers)
-	defer close(writeBackChan)
-	var writeBackWaitGroup sync.WaitGroup
-
-	// Starts async writers
-	forwarderPause.WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, "TESTING")
-
-	for i:=0; i<10; i++ {
-		m := forwarderPubsub.PubSubElement{
-			CompanyID: rand.Intn(4) + 1,
-			Ts: 123,
-			EndPointId: rand.Intn(4) + 1,
-			Rid: int(rand.Int31()),
-		}
-
-		writeBackChan <- &m
-	}
-
-	takeDownAsync(nbrWriteBackWorkers, &writeBackWaitGroup, &writeBackChan)
-
-	// Starts async writers
-	forwarderPause.WriteBackMessages(nbrWriteBackWorkers, &writeBackChan, &writeBackWaitGroup, "TESTING2")
-
-	for i:=0; i<10; i++ {
-		m := forwarderPubsub.PubSubElement{
-			CompanyID: rand.Intn(4) + 1,
-			Ts: 123,
-			EndPointId: rand.Intn(4) + 1,
-			Rid: int(rand.Int31()),
-		}
-
-		writeBackChan <- &m
-	}
-
-	takeDownAsync(nbrWriteBackWorkers, &writeBackWaitGroup, &writeBackChan)
-
-	fmt.Printf("Sleeping 30s before trying to poll the lot")
-	time.Sleep(time.Second * 30)
-
-	err = MoveToIndividual(context.Background(), forwarderPubsub.PubSubMessage{}, []string{"TESTING", "TESTING2"}, "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d")
-	assert.NoError(t, err, "seriously wrong")
-
 }
 
 func TestX(t *testing.T) {
