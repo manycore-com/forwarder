@@ -175,9 +175,20 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 	return cfg, nil
 }
 
+var endPointIdToCount = make(map[int]int)
+var countMutex sync.Mutex
+
+func incEndPointIdToCount(endPointId int) {
+	countMutex.Lock()
+	defer countMutex.Unlock()
+	endPointIdToCount[endPointId] += 1
+}
+
 func asyncWriterToIndividualQueues(writerChan *chan *forwarderPubsub.PubSubElement,
 	                               writerWaitGroup *sync.WaitGroup,
 	                               destSubscriptionTemplate string) {
+
+	endPointIdToCount = make(map[int]int)
 
 	for i := 0; i < nbrPublishWorkers; i++ {
 		writerWaitGroup.Add(1)
@@ -222,6 +233,8 @@ func asyncWriterToIndividualQueues(writerChan *chan *forwarderPubsub.PubSubEleme
 					// TODO push back to original queue? It's being consumed from.
 					continue
 				}
+
+				incEndPointIdToCount(elem.EndPointId)
 
 				fmt.Printf("forwarder.IQ.asyncWriterToIndividualQueues() Success forwarding to %s\n", topicId)
 			}
