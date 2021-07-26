@@ -42,7 +42,7 @@ func asyncSendResendTriggerPackages(channel *chan *TriggerResendElement, waitGro
 					return
 				}
 
-				var trgmsg = fmt.Sprintf("{\"SubscriptionId\":%s, \"NbrItems\":%d}", msg.SubscriptionId, msg.NbrItems)
+				var trgmsg = fmt.Sprintf("{\"SubscriptionId\":\"%s\", \"NbrItems\":%d}", msg.SubscriptionId, msg.NbrItems)
 
 				err := forwarderPubsub.PushAndWaitJsonStringToPubsub(ctx, outTopic, trgmsg)
 				if err != nil {
