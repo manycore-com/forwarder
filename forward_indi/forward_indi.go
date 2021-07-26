@@ -363,9 +363,19 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - receivedInTotal)
 	if nil != err {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to decrease FWD_IQ_PS_%d by %d to %d: %v\n", trgmsg.EndPointId, receivedInTotal, val, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to decrease FWD_IQ_PS_%d by %d: %v\n", trgmsg.EndPointId, receivedInTotal, err)
 	} else {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d: %v\n", trgmsg.EndPointId, receivedInTotal, val, err)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, receivedInTotal, val)
+	}
+
+	var howManyWereNotProcessed = trgmsg.NbrItems - receivedInTotal
+	if 0 < howManyWereNotProcessed {
+		val, err := forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), howManyWereNotProcessed)
+		if nil != err {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", trgmsg.EndPointId, receivedInTotal, err)
+		} else {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_QS_%d by %d to %d because they were missed\n", trgmsg.EndPointId, howManyWereNotProcessed, val)
+		}
 	}
 
 	takeDownAsyncForward(&pubsubForwardChan, &forwardWaitGroup)
