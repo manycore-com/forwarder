@@ -177,7 +177,7 @@ func ReceiveEventsFromPubsub(
 
 	nbrItemsInt64, checkErr := CheckNbrItemsPubsub(projectId, subscriptionId)
 	if checkErr == nil {
-		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(): queue size: %v\n", nbrItemsInt64)
+		fmt.Printf("forwarder.pubsub.ReceiveEventsFromPubsub(): subscriptionId:%s queue size: %v\n", subscriptionId, nbrItemsInt64)
 		pollMax = int(nbrItemsInt64)
 		if pollMax > maxPollPerRun {
 			pollMax = maxPollPerRun
