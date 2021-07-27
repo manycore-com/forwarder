@@ -81,6 +81,16 @@ func TestX(t *testing.T) {
 
 	err := Env()
 	assert.NoError(t, err, "So sad now")
+}
 
+func TestIncEndPointIdToCount(t *testing.T) {
+	endPointIdToCount = make(map[int]int)
 
+	incEndPointIdToCount(1)
+	incEndPointIdToCount(1)
+	incEndPointIdToCount(1)
+	incEndPointIdToCount(1)
+	incEndPointIdToCount(1)
+
+	fmt.Printf("arr: %#v\n", endPointIdToCount)
 }

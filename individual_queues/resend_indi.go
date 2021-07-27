@@ -60,17 +60,20 @@ func ResendIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, destSubscr
 	writerWaitGroup.Wait()
 
 	// And when we're done, increase queue size accordingly
-	for _, endPointId := range endPointIdToCount {
+	var totNbrItems = 0
+	for endPointId, countedItems := range endPointIdToCount {
+		totNbrItems += countedItems
+
 		// Increase FWD_IQ_QS_#
-		_, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), endPointIdToCount[endPointId])
+		_, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), countedItems)
 		if nil != err {
-			fmt.Printf("forwarder.IQ.ResendIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", endPointId, endPointIdToCount[endPointId], err)
+			fmt.Printf("forwarder.IQ.ResendIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", endPointId, countedItems, err)
 		} else {
-			fmt.Printf("forwarder.IQ.ResendIndi() success! increased FWD_IQ_QS_%d by %d\n", endPointId, endPointIdToCount[endPointId])
+			fmt.Printf("forwarder.IQ.ResendIndi() success! increased FWD_IQ_QS_%d by %d\n", endPointId, countedItems)
 		}
 	}
 
-	fmt.Printf("forwarder.IQ.ResendIndi() done! v%s Memstats: %s\n", forwarderCommon.PackageVersion, forwarderStats.GetMemUsageStr())
+	fmt.Printf("forwarder.IQ.ResendIndi() done! v%s nbrMessages:%d Memstats: %s\n", forwarderCommon.PackageVersion, totNbrItems, forwarderStats.GetMemUsageStr())
 
 	return nil
 }
