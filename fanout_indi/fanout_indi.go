@@ -314,9 +314,11 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 		}
 
 		// Increase FWD_IQ_QS_#
-		_, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), count)
+		val, err := forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(endPointId), count)
 		if nil != err {
 			fmt.Printf("forwarder.fanout_indi.FanoutIndi() failed to increase queues size in redis: %v\n", err)
+		} else {
+			fmt.Printf("forwarder.fanout_indi.FanoutIndi() increased FWD_IQ_QS_%d by %d to %d\n", endPointId, count, val)
 		}
 	}
 

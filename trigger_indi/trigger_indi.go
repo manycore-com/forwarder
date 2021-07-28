@@ -226,7 +226,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 					fmt.Printf("forwarder.trigger_indi.TriggerIndi() Failed to decrease redis FWD_IQ_QS_%d by %d: %v\n", endPointId, nbrItems, err)
 					break
 				}
-				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_QS_%d increased by %d and set to %d\n", endPointId, nbrItems, nbr)
+				fmt.Printf("forwarder.trigger_indi.TriggerIndi() FWD_IQ_QS_%d decreased by %d and set to %d\n", endPointId, nbrItems, nbr)
 			}
 		}
 	}

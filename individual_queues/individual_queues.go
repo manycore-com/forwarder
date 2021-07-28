@@ -172,6 +172,8 @@ func GetEndPointData(endPointId int) (*forwarderDb.EndPointCfgStruct, error) {
 		fmt.Printf("forwarder.IQ.GetEndPointData(): Failed to set TTL for %s: %v", key, err)
 	}
 
+	fmt.Printf("forwarder.IQ.GetEndPointData(): Success reading from db: %#v db:%s\n", cfg, os.Getenv("DB_NAME"))
+
 	return cfg, nil
 }
 
