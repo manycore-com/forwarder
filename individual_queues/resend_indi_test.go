@@ -48,3 +48,31 @@ func TestResendIndi(t *testing.T) {
 	ResendIndi(context.Background(), m, "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d")
 
 }
+
+func TestRedisStuff(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	Env()
+
+	forwarderRedis.Init()
+	defer forwarderRedis.Cleanup()
+
+	err := forwarderRedis.Del("klaskatt")
+	if err != nil {
+		assert.NoError(t, err, "dang!")
+		return
+	}
+
+	_, err = forwarderRedis.IncrBy("klaskatt", 10)
+	if err != nil {
+		assert.NoError(t, err, "boo!")
+		return
+	}
+
+	val, err := forwarderRedis.IncrBy("klaskatt", 0 - 5)
+	if err != nil {
+		assert.NoError(t, err, "hoo!")
+		return
+	}
+
+	assert.Equal(t, 5, val)
+}

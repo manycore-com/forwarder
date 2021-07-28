@@ -198,7 +198,7 @@ func TriggerIndi(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 				if maxNbrMessagesPolled < nbrToStart {
 					nbrItems = maxNbrMessagesPolled
 				} else {
-					nbrItems = currentQueueSize
+					nbrItems = nbrToStart
 				}
 
 				var msg = TriggerIndiElement{
