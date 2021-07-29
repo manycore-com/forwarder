@@ -473,7 +473,9 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 		// We must have been able to read QS
 		// There must be at least 8 items on QS, else price runs amok
 		// 1 in 10 it stops because of the random number
-		if 0 < nbrProcessed && hasNbrOnQS && nbrOnQS > 8 && rand.Intn(10) < 9 {
+		// Only self trigger if we're not around the time where we paranoia checks queue size
+		var now = time.Now().UTC()
+		if 0 < nbrProcessed && hasNbrOnQS && nbrOnQS > 8 && rand.Intn(10) < 9 && now.Minute() > 5 {
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() decided to self trigger. PS=0, QS=%d\n", nbrOnQS)
 
 			if nbrOnQS > 16 {
