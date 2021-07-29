@@ -164,11 +164,39 @@ func env() error {
 	return nil
 }
 
+var redisKeyToLowestEpoch = make(map[string]int64)
+var redisKeyToNbrMsg = make(map[string]int)
+var resendDataMutex sync.Mutex
+
+func updateResendData(redisAgeKey string, redisCountKey string, ts int64) {
+	resendDataMutex.Lock()
+	defer resendDataMutex.Unlock()
+
+	redisKeyToNbrMsg[redisCountKey] += 1
+
+	if int64(0) == redisKeyToLowestEpoch[redisAgeKey] || ts < redisKeyToLowestEpoch[redisAgeKey] {
+		redisKeyToLowestEpoch[redisAgeKey] = ts
+	}
+}
+
 func asyncFailureProcessing(
 	pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 	failureWaitGroup *sync.WaitGroup,
 	outTopicIds [3]string,
-	outThresholds [3]int64) {
+	outThresholds [3]int64,
+    outSecondsPerSegment [3]int64) {
+
+	var redisKeysAgeNoEndpointId = [3]string{
+		"oldest_" + outTopicIds[0] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[0], 10) + "_",
+		"oldest_" + outTopicIds[1] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[1], 10) + "_",
+		"oldest_" + outTopicIds[2] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[2], 10) + "_",
+	}
+
+	var redisKeysCountingNoEndpointId = [3]string{
+		"counting_" + outTopicIds[0] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[0], 10) + "_",
+		"counting_" + outTopicIds[1] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[1], 10) + "_",
+		"counting_" + outTopicIds[2] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[2], 10) + "_",
+	}
 
 	for i:=0; i<nbrPublishWorkers; i++ {
 		failureWaitGroup.Add(1)
@@ -197,11 +225,15 @@ func asyncFailureProcessing(
 
 				var messageAge = time.Now().Unix() - elem.Ts
 				var outQueueTopicId = ""
+				var redisAgeKey = ""
+				var redisCountKey = ""
 				var found = false
 				for offs, topicThreshold := range outThresholds {
 					if messageAge >= topicThreshold {
 						found = true
 						outQueueTopicId = outTopicIds[offs]
+						redisAgeKey = redisKeysAgeNoEndpointId[offs] + strconv.Itoa(elem.EndPointId)
+						redisCountKey = redisKeysCountingNoEndpointId[offs] + strconv.Itoa(elem.EndPointId)
 					}
 				}
 
@@ -221,6 +253,8 @@ func asyncFailureProcessing(
 					fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Error: Failed to send to %s pubsub: %v\n", devprod, idx, outQueueTopicId, err)
 					continue
 				}
+
+				updateResendData(redisAgeKey, redisCountKey, elem.Ts)
 
 				fmt.Printf("forwarder.forward_indi.asyncFailureProcessing(%s,%d): Success. Forwarded topic=%s package=%#v\n", devprod, idx, outQueueTopicId, elem)
 			}
@@ -317,9 +351,12 @@ func cleanup() {
 	forwardIndiNbrForwarded = 0
 	forwardIndiNbrDropped = 0
 	forwardIndiNbrFail = 0
+
+	redisKeyToLowestEpoch = make(map[string]int64)
+	redisKeyToNbrMsg = make(map[string]int)
 }
 
-func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64) error {
+func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64, outSecondsPerSegment [3]int64) error {
 	err := env()
 	if nil != err {
 		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(): v%s webhook responder is mis configured: %v", forwarderCommon.PackageVersion, err)
@@ -361,7 +398,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	defer close(pubsubForwardChan)
 	var forwardWaitGroup sync.WaitGroup
 
-	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outTopicIds, outThresholds)
+	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outTopicIds, outThresholds, outSecondsPerSegment)
 
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
@@ -394,6 +431,25 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	}
 
 	_, nbrForwarded, nbrLost, nbrTimeout := forwarderDb.WriteStatsToDb()
+	
+	// Write the redis stats
+	for redisCountKey, val := range redisKeyToNbrMsg {
+		newVal, err := forwarderRedis.IncrBy(redisCountKey, val)
+		if nil != err {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase redis %s by %d: %v\n", redisCountKey, val, err)
+		} else {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased redis %s by %d to %d\n", redisCountKey, val, newVal)
+		}
+	}
+
+	for redisAgeKey, val := range redisKeyToLowestEpoch {
+		newVal, err := forwarderRedis.SetToLowestInt64Not0(redisAgeKey, val)
+		if nil != err {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed update redis %s by age %d: %v\n", redisAgeKey, val, err)
+		} else {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() updated redis %s using %d to %d\n", redisAgeKey, val, newVal)
+		}
+	}
 
 	fmt.Printf("forwarder.forward_indi.ForwardIndi(): done. v%s # forward: %d, # drop: %d, # timeout: %d, Memstats: %s\n", forwarderCommon.PackageVersion, nbrForwarded, nbrLost, nbrTimeout, forwarderStats.GetMemUsageStr())
 

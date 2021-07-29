@@ -12,6 +12,8 @@ import (
 	"sync"
 )
 
+// Still used by Trigger Fanout
+
 var maxNbrMessagesPolled = 64  // This should be the same in forwarder!
 var subscriptionToProcess = ""
 var triggerTopicId = ""
@@ -140,23 +142,23 @@ func Trigger(ctx context.Context, m forwarderPubsub.PubSubMessage) error {
 	}
 
 	fmt.Printf("forwarder.trigger.Trigger(%s) Entry: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
-	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of trigger queue: proj:%s subscription:%s\n", devprod, projectId, triggerSubscriptionId)
 
 	// 1. How many items are already on the trigger queue?
 	alreadyOnTriggerQueue, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, triggerSubscriptionId)
 	if nil != err {
-		fmt.Printf("forwarder.trigger.Trigger(%s) Failed to check trigger queue size: %v\n", devprod, err)
+		fmt.Printf("forwarder.trigger.Trigger() Failed to check trigger queue size proj:%s subscription:%s: %v\n", projectId, triggerSubscriptionId, err)
 		return err
 	}
+	fmt.Printf("forwarder.trigger.Trigger() Size of trigger queue: proj:%s subscription:%s size:%d\n", projectId, triggerSubscriptionId, alreadyOnTriggerQueue)
 
 	// 2. Figure out how many items there in the subscription
-	fmt.Printf("forwarder.trigger.Trigger(%s) Checking size of message queue: proj:%s subscription:%s\n", devprod, projectId, subscriptionToProcess)
-
     nbrItemsInt64, err := forwarderPubsub.CheckNbrItemsPubsub(projectId, subscriptionToProcess)
 	if nil != err {
-		fmt.Printf("forwarder.trigger.Trigger(%s) Failed to check queue size: %v\n", devprod, err)
+		fmt.Printf("forwarder.trigger.Trigger() Failed to check queue size proj:%s subscription:%s: %v\n", projectId, subscriptionToProcess, err)
 		return err
 	}
+	fmt.Printf("forwarder.trigger.Trigger() Size of message queue: subscription:%s size:%d\n", subscriptionToProcess, nbrItemsInt64)
+
 
 	fmt.Printf("forwarder.trigger.Trigger(%s) After size checks: Memstats: %s\n", devprod, forwarderStats.GetMemUsageStr())
 

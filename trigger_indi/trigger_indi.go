@@ -13,6 +13,9 @@ import (
 	"sync"
 )
 
+// This is to trigger the Individual Queues.
+// Fanout still uses the trigger/Trigger()
+
 var maxNbrMessagesPolled = 64 // This should be the same in forwarder!
 var subscriptionTemplate = "" // "INBOXBOOSTER_DEVPROD_FORWARD_INDI_%d"
 var triggerTopicId = ""

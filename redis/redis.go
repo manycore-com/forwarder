@@ -151,6 +151,27 @@ func GetInt(key string) (int, error) {
 	return data, err
 }
 
+func GetInt64(key string) (int64, error) {
+	conn := redisPool.Get()
+	defer conn.Close()
+
+	getResult, err := conn.Do("GET", key)
+	if nil != err {
+		return 0, fmt.Errorf("forwarder.redis.Get() error getting key=%s: %v", key, err)
+	}
+
+	if getResult == nil {
+		return 0, nil
+	}
+
+	data, err := redis.Int64(getResult, err)
+	if err != nil {
+		return 0, fmt.Errorf("forwarder.redis.Get() error parse bytes key=%s: %v", key, err)
+	}
+
+	return data, err
+}
+
 func MGetInt(keys []string) (map[string]int, error) {
 	keysAsInterface := stringArrayAsInterfaceArray(keys)
 
@@ -359,3 +380,15 @@ func ListLRangeInt(key string, startOffs int, stopOffs int) ([]int, error) {
 	return valueAsIntArray(reply)
 }
 
+func SetToLowestInt64Not0(key string, newVal int64) (int64, error) {
+	oldVal, err := GetInt64(key)
+	if nil != err {
+		return 0, err  // not clear what value is the lowest
+	}
+
+	if 0 == oldVal || oldVal > newVal {
+		return newVal, SetInt64(key, newVal)
+	} else {
+		return oldVal, nil
+	}
+}

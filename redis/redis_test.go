@@ -192,3 +192,25 @@ func TestDecrBy(t *testing.T) {
 	assert.NoError(t, err, "memento vivere")
 	assert.Equal(t, 10, val)
 }
+
+func TestSetToLowestInt64Not0(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := Init()
+	assert.NoError(t, err)
+	defer Cleanup()
+
+	key := "klaskatt"
+	assert.NoError(t, Del(key), "Failed to delete")
+
+	nval, err := SetToLowestInt64Not0(key, int64(123))
+	assert.NoError(t, err, "initial set failed")
+	assert.Equal(t, int64(123), nval)
+
+	nval, err = SetToLowestInt64Not0(key, int64(1234))
+	assert.NoError(t, err, "second set failed")
+	assert.Equal(t, int64(123), nval)
+
+	nval, err = SetToLowestInt64Not0(key, int64(12))
+	assert.NoError(t, err, "third set failed")
+	assert.Equal(t, int64(12), nval)
+}
