@@ -469,7 +469,11 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 			}
 		}
 
-		if hasNbrOnQS && nbrOnQS > 8 && rand.Intn(10) < 9 { // 1 in 10 it stops because of the random number
+		// Smth must have been processed this time to self trigger. Redis numbers may be off etc.
+		// We must have been able to read QS
+		// There must be at least 8 items on QS, else price runs amok
+		// 1 in 10 it stops because of the random number
+		if 0 < nbrProcessed && hasNbrOnQS && nbrOnQS > 8 && rand.Intn(10) < 9 {
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() decided to self trigger. PS=0, QS=%d\n", nbrOnQS)
 
 			if nbrOnQS > 16 {
