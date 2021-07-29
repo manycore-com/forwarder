@@ -71,10 +71,6 @@ func ResendIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, destSubscr
 		} else {
 			fmt.Printf("forwarder.IQ.ResendIndi() success! increased FWD_IQ_QS_%d by %d\n", endPointId, countedItems)
 		}
-
-		// Note: No truncated ts in key anymore
-		forwarderRedis.Del("oldest_" + trgmsg.SubscriptionId + "_" + strconv.Itoa(endPointId))
-		forwarderRedis.Del("counting_" + trgmsg.SubscriptionId + "_" + strconv.Itoa(endPointId))
 	}
 
 	fmt.Printf("forwarder.IQ.ResendIndi() done! v%s nbrMessages:%d Memstats: %s\n", forwarderCommon.PackageVersion, totNbrItems, forwarderStats.GetMemUsageStr())

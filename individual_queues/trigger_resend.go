@@ -7,6 +7,7 @@ import (
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
+	"strconv"
 	"sync"
 )
 
@@ -112,11 +113,47 @@ func TriggerResend(ctx context.Context, m forwarderPubsub.PubSubMessage, subscri
 		}
 	}
 
-
 	// Take down the pubsub writer
 	for j:=0; j<nbrPublishWorkers; j++ {
 		messageQueue <- nil
 	}
+
+	val, err := forwarderRedis.GetInt("RUN_SPARSELY_STATS_DELETE")
+	if nil != err {
+		fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read RUN_SPARSELY_STATS_DELETE from Redis: %v\n", forwarderCommon.PackageVersion, err)
+	} else {
+		if 0 == val {
+
+			err = forwarderRedis.SetInt64("RUN_SPARSELY_STATS_DELETE", int64(1))
+			if nil != err {
+				fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to set RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
+			} else {
+				_, err = forwarderRedis.Expire("RUN_SPARSELY_STATS_DELETE", 10 * 60)
+				if nil != err {
+					fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to expire RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
+					forwarderRedis.Del("RUN_SPARSELY_STATS_DELETE")
+				}
+			}
+
+			fmt.Printf("forwarder.IQ.TriggerResend(): cleaning up old stats for Resend. oldest and counting.\n")
+
+			endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
+			if nil != err {
+				fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis: %v\n", forwarderCommon.PackageVersion, err)
+			} else {
+				for _, endPointId := range endPointIds {
+
+					for _, subscriptionId := range subscriptionIds {
+						// Note: No truncated ts in key anymore
+						forwarderRedis.Del("oldest_" + subscriptionId + "_" + strconv.Itoa(endPointId))
+						forwarderRedis.Del("counting_" + subscriptionId + "_" + strconv.Itoa(endPointId))
+					}
+				}
+			}
+		}
+
+	}
+
 
 	waitGroup.Wait()
 
