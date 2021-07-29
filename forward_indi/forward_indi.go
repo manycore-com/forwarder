@@ -375,7 +375,7 @@ func cleanup() {
 	redisKeyToNbrMsg = make(map[string]int)
 }
 
-func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64) error {
+func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64, triggerMyselfTopicId string) error {
 	err := env()
 	if nil != err {
 		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(): v%s webhook responder is mis configured: %v", forwarderCommon.PackageVersion, err)
@@ -433,22 +433,74 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	takeDownAsyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup)
 
-	val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - trgmsg.NbrItems)
+	nbrOnPS, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), 0 - trgmsg.NbrItems)
 	if nil != err {
 		fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to decrease FWD_IQ_PS_%d by %d: %v\n", trgmsg.EndPointId, trgmsg.NbrItems, err)
 	} else {
-		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, trgmsg.NbrItems, val)
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, trgmsg.NbrItems, nbrOnPS)
 	}
 
 	var nbrProcessed = forwardIndiNbrFail + forwardIndiNbrForwarded + forwardIndiNbrDropped
 
+	var nbrOnQS = 0
+	var hasNbrOnQS = false
 	if 0 < (trgmsg.NbrItems - nbrProcessed) {
 		var increaseQsBy = (trgmsg.NbrItems - nbrProcessed)
-		val, err := forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), increaseQsBy)
+		nbrOnQS, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), increaseQsBy)
 		if nil != err {
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", trgmsg.EndPointId, increaseQsBy, err)
 		} else {
-			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_QS_%d by %d to %d because they were missed\n", trgmsg.EndPointId, increaseQsBy, val)
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_QS_%d by %d to %d because they were missed\n", trgmsg.EndPointId, increaseQsBy, nbrOnQS)
+			hasNbrOnQS = true
+		}
+	}
+
+	// Currently nothing is being processed. This means we'll have to wait for the trigger to kick in.
+	if 0 == nbrOnPS {
+		if ! hasNbrOnQS {
+			nbrOnQS, err = forwarderRedis.GetInt("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId))
+			if nil != err {
+				fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to read FWD_IQ_QS_%d: %v\n", trgmsg.EndPointId, err)
+			} else {
+				hasNbrOnQS = true
+			}
+		}
+
+		if hasNbrOnQS && nbrOnQS > 4 {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() decided to self trigger. PS=0, QS=%d\n", nbrOnQS)
+
+			if nbrOnQS > 16 {
+				nbrOnQS = 16
+			}
+
+			ctx, client, outQueueTopic, err := forwarderPubsub.SetupClientAndTopic(projectId, triggerMyselfTopicId)
+			if nil != client {
+				defer client.Close()
+			}
+
+			if nil != err {
+				fmt.Printf("forwarder.forward_indi.ForwardIndi() failed create client for Trigger Myself: %v\n", err)
+			} else {
+				var jsonmsg = fmt.Sprintf("{\"EndPointId\":%d, \"NbrItems\":%d}", trgmsg.EndPointId, nbrOnQS)
+				err = forwarderPubsub.PushAndWaitJsonStringToPubsub(ctx, outQueueTopic, jsonmsg)
+				if nil != err {
+					fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to post self trigger msg: %v\n", err)
+				} else {
+					val, err := forwarderRedis.IncrBy("FWD_IQ_PS_" + strconv.Itoa(trgmsg.EndPointId), nbrOnQS)
+					if nil != err {
+						fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_PS_%d by %d (self trigger): %v\n", trgmsg.EndPointId, nbrOnQS, err)
+					} else {
+						fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_PS_%d by %d to %d (self trigger)\n", trgmsg.EndPointId, nbrOnQS, val)
+					}
+
+					val, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), 0 - nbrOnQS)
+					if nil != err {
+						fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to decrease FWD_IQ_QS_%d by %d (self trigger): %v\n", trgmsg.EndPointId, nbrOnQS, err)
+					} else {
+						fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_QS_%d by %d to %d (self trigger)\n", trgmsg.EndPointId, nbrOnQS, val)
+					}
+				}
+			}
 		}
 	}
 
