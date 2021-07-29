@@ -13,6 +13,7 @@ import (
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	forwarderTriggerIndi "github.com/manycore-com/forwarder/trigger_indi"
+	"math/rand"
 	"os"
 	"strconv"
 	"sync"
@@ -457,6 +458,8 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	// Currently nothing is being processed. This means we'll have to wait for the trigger to kick in.
 	if 0 == nbrOnPS {
+		rand.Seed(time.Now().UnixNano())
+
 		if ! hasNbrOnQS {
 			nbrOnQS, err = forwarderRedis.GetInt("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId))
 			if nil != err {
@@ -466,7 +469,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 			}
 		}
 
-		if hasNbrOnQS && nbrOnQS > 4 {
+		if hasNbrOnQS && nbrOnQS > 8 && rand.Intn(10) < 9 { // 1 in 10 it stops because of the random number
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() decided to self trigger. PS=0, QS=%d\n", nbrOnQS)
 
 			if nbrOnQS > 16 {
