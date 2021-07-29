@@ -183,19 +183,18 @@ func asyncFailureProcessing(
 	pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 	failureWaitGroup *sync.WaitGroup,
 	outTopicIds [3]string,
-	outThresholds [3]int64,
-    outSecondsPerSegment [3]int64) {
+	outThresholds [3]int64) {
 
 	var redisKeysAgeNoEndpointId = [3]string{
-		"oldest_" + outTopicIds[0] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[0], 10) + "_",
-		"oldest_" + outTopicIds[1] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[1], 10) + "_",
-		"oldest_" + outTopicIds[2] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[2], 10) + "_",
+		"oldest_" + outTopicIds[0] + "_",
+		"oldest_" + outTopicIds[1] + "_",
+		"oldest_" + outTopicIds[2] + "_",
 	}
 
 	var redisKeysCountingNoEndpointId = [3]string{
-		"counting_" + outTopicIds[0] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[0], 10) + "_",
-		"counting_" + outTopicIds[1] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[1], 10) + "_",
-		"counting_" + outTopicIds[2] + "_" + strconv.FormatInt(time.Now().Unix() / outSecondsPerSegment[2], 10) + "_",
+		"counting_" + outTopicIds[0] + "_",
+		"counting_" + outTopicIds[1] + "_",
+		"counting_" + outTopicIds[2] + "_",
 	}
 
 	for i:=0; i<nbrPublishWorkers; i++ {
@@ -356,7 +355,7 @@ func cleanup() {
 	redisKeyToNbrMsg = make(map[string]int)
 }
 
-func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64, outSecondsPerSegment [3]int64) error {
+func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicIds [3]string, outThresholds [3]int64) error {
 	err := env()
 	if nil != err {
 		return fmt.Errorf("forwarder.forward_indi.ForwardIndi(): v%s webhook responder is mis configured: %v", forwarderCommon.PackageVersion, err)
@@ -398,7 +397,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	defer close(pubsubForwardChan)
 	var forwardWaitGroup sync.WaitGroup
 
-	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outTopicIds, outThresholds, outSecondsPerSegment)
+	asyncFailureProcessing(&pubsubFailureChan, &failureWaitGroup, outTopicIds, outThresholds)
 
 	asyncForward(&pubsubForwardChan, &forwardWaitGroup, &pubsubFailureChan)
 
