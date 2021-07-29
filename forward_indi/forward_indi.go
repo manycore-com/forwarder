@@ -440,6 +440,11 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 		} else {
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased redis %s by %d to %d\n", redisCountKey, val, newVal)
 		}
+
+		_, err = forwarderRedis.Expire(redisCountKey, 48 * 3600)
+		if nil != err {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to set expire on redis %s: %v\n", redisCountKey, err)
+		}
 	}
 
 	for redisAgeKey, val := range redisKeyToLowestEpoch {
@@ -448,6 +453,11 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed update redis %s by age %d: %v\n", redisAgeKey, val, err)
 		} else {
 			fmt.Printf("forwarder.forward_indi.ForwardIndi() updated redis %s using %d to %d\n", redisAgeKey, val, newVal)
+		}
+
+		forwarderRedis.Expire(redisAgeKey, 48 * 3600)
+		if nil != err {
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to set expire on redis %s: %v\n", redisAgeKey, err)
 		}
 	}
 
