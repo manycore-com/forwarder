@@ -129,7 +129,7 @@ func receiveEventsFromPubsubPoller(
 				msg.Nack()
 				cancel()
 			} else {
-				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() Ack age:%v, Message: %#v\n", AgeInSecMessage(msg), elem)
+				fmt.Printf("forwarder.pubsub.receiveEventsFromPubsubPoller() Ack age:%v\n", AgeInSecMessage(msg))
 				msg.Ack()
 
 				mu.Lock()

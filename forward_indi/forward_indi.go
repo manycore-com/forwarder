@@ -273,6 +273,26 @@ func takeDownAsyncFailureProcessing(pubsubFailureChan *chan *forwarderPubsub.Pub
 var forwardIndiNbrForwarded = 0
 var forwardIndiNbrDropped = 0
 var forwardIndiNbrFail = 0
+var forwardIndiMutex sync.Mutex
+
+func incNbrForwarded() {
+	forwardIndiMutex.Lock()
+	forwardIndiNbrForwarded++
+	forwardIndiMutex.Unlock()
+}
+
+func incNbrDropped() {
+	forwardIndiMutex.Lock()
+	forwardIndiNbrDropped++
+	forwardIndiMutex.Unlock()
+}
+
+func incNbrFail() {
+	forwardIndiMutex.Lock()
+	forwardIndiNbrFail++
+	forwardIndiMutex.Unlock()
+}
+
 
 func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup, pubsubFailureChan *chan *forwarderPubsub.PubSubElement) {
 
@@ -293,7 +313,7 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 				if elem.Ts < dieIfTsLt {
 					fmt.Printf("forwarder.forward_indi.asyncForward(%s) Package died of old age\n", devprod)
 					forwarderStats.AddTimeout(elem.CompanyID, elem.EndPointId)
-					forwardIndiNbrDropped++
+					incNbrDropped()
 					continue
 				}
 
@@ -308,25 +328,25 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					fmt.Printf("forwarder.forward_indi.asyncForward(%s): Bad esp. esp=%s, companyId=%d\n", devprod, elem.ESP, elem.CompanyID)
 					forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
 					forwarderStats.AddErrorMessage(elem.CompanyID, elem.EndPointId, "Only sendgrid is supported for now. esp=" + elem.ESP)
-					forwardIndiNbrDropped++
+					incNbrDropped()
 					continue
 				}
 
 				if nil == err {
 					forwarderStats.AddForwardedAtH(elem.CompanyID, elem.EndPointId)
 					forwarderStats.AddAgeWhenForward(elem.CompanyID, elem.EndPointId, elem.Ts)
-					forwardIndiNbrForwarded++
+					incNbrForwarded()
 				} else {
 
 					fmt.Printf("forwarder.forward_indi.asyncForward(%s): Failed to forward: %v, retryable error:%v\n", devprod, err, anyPointToRetry)
 
 					if anyPointToRetry {
 						// Stats calculated by asyncFailureProcessing
-						forwardIndiNbrFail++
+						incNbrFail()
 						*pubsubFailureChan <- elem
 					} else {
 						forwarderStats.AddLost(elem.CompanyID, elem.EndPointId)
-						forwardIndiNbrDropped++
+						incNbrDropped()
 					}
 				}
 			}
@@ -420,12 +440,15 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 		fmt.Printf("forwarder.forward_indi.ForwardIndi() decreased FWD_IQ_PS_%d by %d to %d\n", trgmsg.EndPointId, trgmsg.NbrItems, val)
 	}
 
-	if 0 < forwardIndiNbrFail {
-		val, err := forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), forwardIndiNbrFail)
+	var nbrProcessed = forwardIndiNbrFail + forwardIndiNbrForwarded + forwardIndiNbrDropped
+
+	if 0 < (trgmsg.NbrItems - nbrProcessed) {
+		var increaseQsBy = (trgmsg.NbrItems - nbrProcessed)
+		val, err := forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), increaseQsBy)
 		if nil != err {
-			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", trgmsg.EndPointId, forwardIndiNbrFail, err)
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() failed to increase FWD_IQ_QS_%d by %d: %v\n", trgmsg.EndPointId, increaseQsBy, err)
 		} else {
-			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_QS_%d by %d to %d because they were missed\n", trgmsg.EndPointId, forwardIndiNbrFail, val)
+			fmt.Printf("forwarder.forward_indi.ForwardIndi() increased FWD_IQ_QS_%d by %d to %d because they were missed\n", trgmsg.EndPointId, increaseQsBy, val)
 		}
 	}
 
