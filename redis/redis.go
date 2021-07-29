@@ -15,6 +15,8 @@ import (
 //  individual_queues   FWD_IQ_QS_#                   Current size of webhook_forwarder_poll_endpoint.id #'s subscription
 //  individual_queues   FWD_IQ_PS_#                   Number of events currently processing for webhook_forwarder_poll_endpoint.id
 //  individual_queues   FWD_IQ_ACTIVE_ENDPOINTS_SET   This is a set of ids of active endpoints
+//  forward_indi        oldest_#1_#2                  #1 is a resend subscription, #2 is endpoint_id
+//  forward_indi        counting_#1_#2                #1 is a resend subscription, #2 is endpoint_id
 
 var redisPool *redis.Pool
 

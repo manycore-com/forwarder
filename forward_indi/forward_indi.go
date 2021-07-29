@@ -408,6 +408,8 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 	err = json.Unmarshal(m.Data, &trgmsg)
 	if nil != err {
 		return fmt.Errorf("forwarder.forward_indi.ForwardIndi() v%s Error decoding trigger message: %v", forwarderCommon.PackageVersion, err)
+	} else {
+		fmt.Printf("forwarder.forward_indi.ForwardIndi() v%s got trigger message: %#v\n", forwarderCommon.PackageVersion, trgmsg)
 	}
 
 	pubsubFailureChan := make(chan *forwarderPubsub.PubSubElement, 2000)
@@ -445,7 +447,7 @@ func ForwardIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, outTopicI
 
 	var nbrOnQS = 0
 	var hasNbrOnQS = false
-	if 0 < (trgmsg.NbrItems - nbrProcessed) {
+	if 0 != (trgmsg.NbrItems - nbrProcessed) {
 		var increaseQsBy = (trgmsg.NbrItems - nbrProcessed)
 		nbrOnQS, err = forwarderRedis.IncrBy("FWD_IQ_QS_" + strconv.Itoa(trgmsg.EndPointId), increaseQsBy)
 		if nil != err {
