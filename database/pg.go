@@ -647,7 +647,8 @@ func WriteQueueCheckpoint(endpointId int, companyId int, resendSize int, qsSize 
 
 
 	t := time.Now().UTC()
-	createdAt := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	// Meng: changed to be hourly
+	createdAt := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, time.UTC)
 	q := `
     insert into webhook_queue_size_checkpoint_v3 as o (
         created_at,
@@ -781,7 +782,6 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
 
 	now := time.Now().UTC()
 	hourNow := now.Hour()
-	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	outArray := make([]*CompanyQueueSize, 0, 0)
 
@@ -796,23 +796,32 @@ func GetCompaniesAndQueueSizes() ([]*CompanyQueueSize, error) {
 	// TODO add some min level. Eg. only bother if >1000 items in queue
 	q := `
     select
-        ws.company_id,
-        ws.qus_h` + fmt.Sprintf("%02d", hourNow) + `,
+        cp3.company_id,
+		cp3.max_queue,
         wc.warned_at,
         wc.disabled_at,
         uc.alert_email,
-        ws.endpoint_id
+        cp3.endpoint_id
     from
-        webhook_forwarder_daily_forward_stats_v3 ws,
+	    (
+            select
+                endpoint_id,
+                company_id,
+                max(resend_size + qs_size) max_queue
+            from webhook_queue_size_checkpoint_v3 cp3
+            where
+                created_at > now() - interval '2 hours'
+            group by
+                endpoint_id, company_id
+        ) cp3,
         webhook_forwarder_poll_cfg wc,
         users_company uc
     where
-        ws.created_at = $1 AND
-        ws.company_id = wc.company_id AND
+        cp3.company_id = wc.company_id AND
         wc.disabled_at is null AND
-        uc.id = ws.company_id
+        uc.id = cp3.company_id
     `
-	rows, err := dbconn.Query(context.Background(), q, day)
+	rows, err := dbconn.Query(context.Background(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -904,6 +913,40 @@ func DisableCompany(companyId int) error {
 	if nil != err {
 		return fmt.Errorf("forwarder.database.pg.DisableCompany() failed to update is_active: %v", err)
 	}
+
+	return nil
+}
+
+func PurgeOldRows() error {
+	dbUsageMutex.Lock()
+	defer dbUsageMutex.Unlock()
+
+	dbconn, err := GetDbConnection()
+	if nil != err {
+		return err
+	}
+
+	q := `
+    delete from webhook_queue_size_checkpoint_v3
+    where
+        created_at < now() - interval '7 days'
+    `
+	_, err = dbconn.Exec(context.Background(), q)
+	if nil != err {
+		return fmt.Errorf("forwarder.database.pg.PurgeOldRows() failed to delete webhook_queue_size_checkpoint_v3 rows: %v", err)
+	}
+
+	q = `
+    delete from webhook_forwarder_daily_forward_stats_v3
+    where
+        created_at < now() - interval '7 days'
+    `
+	_, err = dbconn.Exec(context.Background(), q)
+	if nil != err {
+		return fmt.Errorf("forwarder.database.pg.PurgeOldRows() failed to delete webhook_forwarder_daily_forward_stats_v3 rows: %v", err)
+	}
+
+	fmt.Printf("forwarder.database.PurgeOldRows() success\n")
 
 	return nil
 }

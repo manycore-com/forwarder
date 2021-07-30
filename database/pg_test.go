@@ -129,3 +129,9 @@ func TestWriteQueueCheckpoint(t *testing.T) {
 	err := WriteQueueCheckpoint(1, 1, 2, 3, 4, 5)
 	assert.NoError(t, err)
 }
+
+func TestPurgeOldRows(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := PurgeOldRows()
+	assert.NoError(t, err)
+}
