@@ -1,12 +1,27 @@
 package queue_sizes
 
 import (
+	"context"
 	"fmt"
+	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
+	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
+	"os"
 	"strconv"
 	"time"
 )
+
+
+var projectId = ""
+var devprod = ""
+func env() error {
+	projectId = os.Getenv("PROJECT_ID")
+	devprod = os.Getenv("DEV_OR_PROD")
+
+	return nil
+}
+
 
 func CalculateCurrentQueueSize(endPointId int, resendQueueTemplates []string) (int, int, int, error) {
 
@@ -69,7 +84,17 @@ func GetOldestAgeInResend(endPointId int, resendQueueTemplates []string) (int, e
 	return int(now - lowestTs), nil
 }
 
-func QueueCheckpoint(resendQueueTemplates []string) error {
+func QueueCheckpoint(ctx context.Context, m forwarderPubsub.PubSubMessage, resendQueueTemplates []string) error {
+	err := env()
+	if nil != err {
+		return fmt.Errorf("forwarder.queue_sizes.QueueCheckpoint() v%s is mis configured: %v", forwarderCommon.PackageVersion, err)
+	}
+
+	err = forwarderRedis.Init()
+	if nil != err {
+		return fmt.Errorf("failed to init redis: %v", err)
+	}
+	defer forwarderRedis.Cleanup()
 
 	endpointCompanies, err := forwarderDb.GetLatestActiveEndpoints()
 	if nil != err {
