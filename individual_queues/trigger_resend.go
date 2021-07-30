@@ -9,6 +9,7 @@ import (
 	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type TriggerResendElement struct {
@@ -56,7 +57,6 @@ func asyncSendResendTriggerPackages(channel *chan *TriggerResendElement, waitGro
 		}(i, waitGroup)
 	}
 }
-
 
 func TriggerResend(ctx context.Context, m forwarderPubsub.PubSubMessage, subscriptionIds []string, triggerTopicId string) error {
 
@@ -118,42 +118,45 @@ func TriggerResend(ctx context.Context, m forwarderPubsub.PubSubMessage, subscri
 		messageQueue <- nil
 	}
 
-	val, err := forwarderRedis.GetInt("RUN_SPARSELY_STATS_DELETE")
-	if nil != err {
-		fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read RUN_SPARSELY_STATS_DELETE from Redis: %v\n", forwarderCommon.PackageVersion, err)
-	} else {
-		if 0 == val {
+	var min = time.Now().Minute()
 
-			err = forwarderRedis.SetInt64("RUN_SPARSELY_STATS_DELETE", int64(1))
-			if nil != err {
-				fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to set RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
-			} else {
-				_, err = forwarderRedis.Expire("RUN_SPARSELY_STATS_DELETE", 10 * 60)
+	if (8 < min && min < 15) || (20 < min && min < 30) || (35 < min && min < 45) || (50 < min) {
+		val, err := forwarderRedis.GetInt("RUN_SPARSELY_STATS_DELETE")
+		if nil != err {
+			fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read RUN_SPARSELY_STATS_DELETE from Redis: %v\n", forwarderCommon.PackageVersion, err)
+		} else {
+			if 0 == val {
+
+				err = forwarderRedis.SetInt64("RUN_SPARSELY_STATS_DELETE", int64(1))
 				if nil != err {
-					fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to expire RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
-					forwarderRedis.Del("RUN_SPARSELY_STATS_DELETE")
+					fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to set RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
+				} else {
+					_, err = forwarderRedis.Expire("RUN_SPARSELY_STATS_DELETE", 5 * 60)
+					if nil != err {
+						fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to expire RUN_SPARSELY_STATS_DELETE in Redis: %v\n", forwarderCommon.PackageVersion, err)
+						forwarderRedis.Del("RUN_SPARSELY_STATS_DELETE")
+					}
 				}
-			}
 
-			fmt.Printf("forwarder.IQ.TriggerResend(): cleaning up old stats for Resend. oldest and counting.\n")
+				fmt.Printf("forwarder.IQ.TriggerResend(): cleaning up old stats for Resend. oldest and counting.\n")
 
-			endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
-			if nil != err {
-				fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis: %v\n", forwarderCommon.PackageVersion, err)
-			} else {
-				for _, endPointId := range endPointIds {
+				endPointIds, err := forwarderRedis.SetMembersInt("FWD_IQ_ACTIVE_ENDPOINTS_SET")
+				if nil != err {
+					fmt.Printf("forwarder.IQ.TriggerResend() v%s failed to read set FWD_IQ_ACTIVE_ENDPOINTS_SET from Redis: %v\n", forwarderCommon.PackageVersion, err)
+				} else {
+					for _, endPointId := range endPointIds {
 
-					for _, subscriptionId := range subscriptionIds {
-						// Note: No truncated ts in key anymore
-						forwarderRedis.Del("oldest_" + subscriptionId + "_" + strconv.Itoa(endPointId))
-						forwarderRedis.Del("counting_" + subscriptionId + "_" + strconv.Itoa(endPointId))
+						for _, subscriptionId := range subscriptionIds {
+							// Note: No truncated ts in key anymore
+							forwarderRedis.Del("oldest_" + subscriptionId + "_" + strconv.Itoa(endPointId))
+							forwarderRedis.Del("counting_" + subscriptionId + "_" + strconv.Itoa(endPointId))
+						}
 					}
 				}
 			}
+
 		}
-
 	}
-
 
 	waitGroup.Wait()
 

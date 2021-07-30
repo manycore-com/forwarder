@@ -635,7 +635,7 @@ func Cleanup() {
 	companyInfoMap = make(map[int]*CompanyInfo)
 }
 
-func WriteQueueCheckpoint(endpointId int, queueSize int) error {
+func WriteQueueCheckpoint(endpointId int, companyId int, resendSize int, qsSize int, psSize int, oldestAge int) error {
 
 	dbUsageMutex.Lock()
 	defer dbUsageMutex.Unlock()
@@ -647,66 +647,14 @@ func WriteQueueCheckpoint(endpointId int, queueSize int) error {
 
 
 	t := time.Now().UTC()
-	created_at := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-
-	var rec int
-	var age int
-	var fwd int
-	var ent int
-	var total_lost_messages int
-	var total_timeout_messages int
-	var companyId int
+	createdAt := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 	q := `
-    select
-        rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
-	    coalesce(age_h00,0) + coalesce(age_h01,0) + coalesce(age_h02,0) + coalesce(age_h03,0) + coalesce(age_h04,0) + coalesce(age_h05,0) + coalesce(age_h06,0) + coalesce(age_h07,0) + coalesce(age_h08,0) + coalesce(age_h09,0) + coalesce(age_h10,0) + coalesce(age_h11,0) + coalesce(age_h12,0) + coalesce(age_h16,0) + coalesce(age_h20,0) + coalesce(age_h24,0) + coalesce(age_h28,0) + coalesce(age_h32,0) + coalesce(age_h36,0) + coalesce(age_h42,0) + coalesce(age_h48,0) + coalesce(age_h54,0) + coalesce(age_h60,0) + coalesce(age_h66,0) as sum_age,
-        fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
-        ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
-        total_lost_messages as total_lost_messages,
-        total_timeout_messages as total_timeout_messages,
-        company_id
-    from 
-        webhook_forwarder_daily_forward_stats_v3
-    where
-        endpoint_id = $1 AND
-        created_at = $2
-    `
-	err = dbconn.QueryRow(context.Background(), q, endpointId, created_at).Scan(&rec, &age, &fwd, &ent, &total_lost_messages, &total_timeout_messages, &companyId)
-	if err != nil {
-		// TODO what's the right way to check if no rows OR query failed?
-		if ! strings.Contains(err.Error(), "no rows in ") {
-			return err
-		}
-
-		fmt.Printf("forwarder.database.WriteQueueCheckpoint(): no stats row, assuming zeros\n")
-	}
-
-	// No rows found, we need to lookup companyId
-	if 0 == companyId {
-		q = `
-        select
-            company_id
-        from
-            webhook_forwarder_poll_endpoint
-        where
-            id = $1
-        `
-		err = dbconn.QueryRow(context.Background(), q, endpointId).Scan(&companyId)
-		if err != nil {
-			return fmt.Errorf("forwarder.database.WriteQueueCheckpoint() Failed to lookup Company from Endpoint=%d: %v", endpointId, err)
-		}
-	}
-
-	q = `
-    insert into webhook_queue_size_checkpoint_v2 as o (
+    insert into webhook_queue_size_checkpoint_v3 as o (
         created_at,
-        rec,
-        ent,
-        age,
-        fwd,
-        total_lost_messages,
-        total_timeout_messages,
-        counted_items_on_fwd_queues,
+		resend_size,
+		qs_size,
+		ps_size,
+		oldest_age,
         company_id,
         endpoint_id
     ) values (
@@ -716,147 +664,26 @@ func WriteQueueCheckpoint(endpointId int, queueSize int) error {
         $4,
         $5,
         $6,
-        $7,
-        $8,
-        $9,
-        $10
+        $7
     )
     ON CONFLICT (endpoint_id, company_id, created_at) DO UPDATE 
     set
-        created_at = $11,
-        rec = $12,
-        ent = $13,
-        age = $14,
-        fwd = $15,
-        total_lost_messages = $16,
-        total_timeout_messages = $17,
-        counted_items_on_fwd_queues = $18,
-        company_id = $19,
-        endpoint_id = $20
+        created_at = $8,
+		resend_size = $9,
+		qs_size = $10,
+		ps_size = $11,
+		oldest_age = $12,
+        company_id = $13,
+        endpoint_id = $14
     `
-	fmt.Printf("forwarder.database.WriteQueueCheckpoint() Result: created:%v rec:%v ent:%v age:%v fwd:%v lost:%v timeout:%v qsize:%v company:%v endpoint:%v\n", created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId)
 	_, err = dbconn.Exec(context.Background(), q,
-		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId,
-		created_at, rec, ent, age, fwd, total_lost_messages, total_timeout_messages, queueSize, companyId, endpointId)
+		createdAt, resendSize, qsSize, psSize, oldestAge, companyId, endpointId,
+		createdAt, resendSize, qsSize, psSize, oldestAge, companyId, endpointId)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func CalculateQueueSize(endpointId int) (int, error) {
-	dbUsageMutex.Lock()
-	defer dbUsageMutex.Unlock()
-
-	dbconn, err := GetDbConnection()
-	if nil != err {
-		return -1, err
-	}
-
-	var created_at time.Time
-	var rec int
-	var ent int
-	var age int
-	var fwd int
-	var total_lost_messages int
-	var total_timeout_messages int
-	var counted_items_on_fwd_queues int
-	var companyId int
-	// The 7 days is just because I wanted some kind of limit
-	q := `
-    select
-        created_at,
-        0 - rec,
-        0 - ent,
-        0 - age,
-        0 - fwd,
-        0 - total_lost_messages,
-        0 - total_timeout_messages,
-        counted_items_on_fwd_queues,
-        company_id
-    from
-        webhook_queue_size_checkpoint_v2
-    where
-        endpoint_id = $1 and
-        created_at > now() - interval '7 days'
-    order by
-        created_at desc
-    limit 1
-    `
-	err = dbconn.QueryRow(context.Background(), q, endpointId).Scan(&created_at, &rec, &ent, &age, &fwd, &total_lost_messages, &total_timeout_messages, &counted_items_on_fwd_queues, &companyId)
-	if err != nil {
-		// TODO what's the right way to check if no rows OR query failed?
-		if ! strings.Contains(err.Error(), "no rows in ") {
-			return 0, err
-		}
-
-		fmt.Printf("forwarder.database.CalculateQueueSize(): no checpoint row, assuming zeros\n")
-		return 0, nil
-	}
-
-	var day_rec int
-	var day_age int
-	var day_fwd int
-	var day_ent int
-	var day_total_lost_messages int
-	var day_total_timeout_messages int
-	q = `
-    select
-        rec_h00 + rec_h01 + rec_h02 + rec_h03 + rec_h04 + rec_h05 + rec_h06 + rec_h07 + rec_h08 + rec_h09 + rec_h10 + rec_h11 + rec_h12 + rec_h13 + rec_h14 + rec_h15 + rec_h16 + rec_h17 + rec_h18 + rec_h19 + rec_h20 + rec_h21 + rec_h22 + rec_h23 as sum_rec,
-	    coalesce(age_h00,0) + coalesce(age_h01,0) + coalesce(age_h02,0) + coalesce(age_h03,0) + coalesce(age_h04,0) + coalesce(age_h05,0) + coalesce(age_h06,0) + coalesce(age_h07,0) + coalesce(age_h08,0) + coalesce(age_h09,0) + coalesce(age_h10,0) + coalesce(age_h11,0) + coalesce(age_h12,0) + coalesce(age_h16,0) + coalesce(age_h20,0) + coalesce(age_h24,0) + coalesce(age_h28,0) + coalesce(age_h32,0) + coalesce(age_h36,0) + coalesce(age_h42,0) + coalesce(age_h48,0) + coalesce(age_h54,0) + coalesce(age_h60,0) + coalesce(age_h66,0) as sum_age,
-        fwd_h00 + fwd_h01 + fwd_h02 + fwd_h03 + fwd_h04 + fwd_h05 + fwd_h06 + fwd_h07 + fwd_h08 + fwd_h09 + fwd_h10 + fwd_h11 + fwd_h12 + fwd_h13 + fwd_h14 + fwd_h15 + fwd_h16 + fwd_h17 + fwd_h18 + fwd_h19 + fwd_h20 + fwd_h21 + fwd_h22 + fwd_h23 as sum_fwd,
-        ent_h00 + ent_h01 + ent_h02 + ent_h03 + ent_h04 + ent_h05 + ent_h06 + ent_h07 + ent_h08 + ent_h09 + ent_h10 + ent_h11 + ent_h12 + ent_h13 + ent_h14 + ent_h15 + ent_h16 + ent_h17 + ent_h18 + ent_h19 + ent_h20 + ent_h21 + ent_h22 + ent_h23 as sum_ent,
-        total_lost_messages as total_lost_messages,
-        total_timeout_messages as total_timeout_messages
-    from 
-        webhook_forwarder_daily_forward_stats_v3
-    where
-        endpoint_id = $1 AND
-        company_id = $2 AND
-        created_at >= $4
-    `
-	rows, err := dbconn.Query(context.Background(), q, endpointId, companyId, created_at)
-	if err != nil {
-		return -1, err
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		err = rows.Scan(&day_rec, &day_age, &day_fwd, &day_ent, &day_total_lost_messages, &day_total_timeout_messages)
-		if nil != err {
-			return -1, err
-		}
-
-		rec += day_rec
-		ent += day_ent
-		age += day_age
-		fwd += day_fwd
-		total_lost_messages += day_total_lost_messages
-		total_timeout_messages += day_total_timeout_messages
-	}
-
-	result := counted_items_on_fwd_queues + ent - fwd - total_lost_messages - total_timeout_messages
-	// fmt.Printf("a %v + %v - %v - %v - %v = %v \n", counted_items_on_fwd_queues, ent, fwd, total_lost_messages, total_timeout_messages, result)
-
-	t := time.Now().UTC()
-	hourNow := t.Hour()
-	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-
-	q = `
-    update webhook_forwarder_daily_forward_stats_v3
-    set
-        ` + fmt.Sprintf("qus_h%02d", hourNow) + ` = $1
-    where
-        company_id = $2 AND
-        created_at = $3
-    `
-	_, err = dbconn.Exec(context.Background(), q, result, companyId, day)
-	if err != nil {
-		return result, err
-	}
-
-	return result, nil
 }
 
 func GetLatestActiveCompanies() ([]int, error) {
@@ -931,24 +758,6 @@ func GetLatestActiveEndpoints() ([]EndpointCompany, error) {
 	}
 
 	return companies, nil
-}
-
-func CalculateQueueSizes() error {
-
-	companies, err := GetLatestActiveCompanies()
-	if nil != err {
-		return err
-	}
-
-    for _, companyId := range companies {
-		qsize, err := CalculateQueueSize(companyId)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("forwarder.pg.CalculateQueueSizes() companyId:%d queueSize:%d\n", companyId, qsize)
-	}
-
-	return nil
 }
 
 type CompanyQueueSize struct {

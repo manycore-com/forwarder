@@ -18,6 +18,7 @@ import (
 //  forward_indi        oldest_#1_#2                  #1 is a resend subscription, #2 is endpoint_id
 //  forward_indi        counting_#1_#2                #1 is a resend subscription, #2 is endpoint_id
 //  trigger_resend      RUN_SPARSELY_STATS_DELETE
+//  pause               IN_PAUSE
 
 var redisPool *redis.Pool
 

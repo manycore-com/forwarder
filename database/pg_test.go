@@ -88,22 +88,6 @@ func TestCreatePauseRows(t *testing.T) {
 	assert.False(t, IsPaused(1), "seems like DeleteAllPauseRows failed to remove row for hashid 0")
 }
 
-func TestWriteQueueCheckpoint(t *testing.T) {
-	forwarderTest.SetEnvVars()
-
-	err := WriteQueueCheckpoint(1, 123)
-	assert.NoError(t, err, "WriteQueueCheckinpoint is unhappy")
-}
-
-func TestCalculateQueueSize(t *testing.T) {
-	forwarderTest.SetEnvVars()
-
-	x, err := CalculateQueueSize(1)
-	assert.NoError(t, err, "Fail")
-
-	fmt.Printf("Nbr items reported: %d\n", x)
-
-}
 
 func TestGetLatestActiveCompanies(t *testing.T) {
 	forwarderTest.SetEnvVars()
@@ -111,13 +95,6 @@ func TestGetLatestActiveCompanies(t *testing.T) {
 	assert.NoError(t, err, "GetLatestActiveCompanies is buggy")
 	assert.NotNil(t, companies, "Companies is nil!")
 }
-
-func TestCalculateQueueSizes(t *testing.T) {
-	forwarderTest.SetEnvVars()
-	err := CalculateQueueSizes()
-	assert.NoError(t, err, "Failed")
-}
-
 
 func TestGetCompaniesAndQueueSizes(t *testing.T) {
 	forwarderTest.SetEnvVars()
@@ -145,4 +122,10 @@ func TestGetEndPointCfg(t *testing.T) {
 	v, err := GetEndPointCfg(1)
 	assert.NoError(t, err)
 	fmt.Printf("%#v\n", v)
+}
+
+func TestWriteQueueCheckpoint(t *testing.T) {
+	forwarderTest.SetEnvVars()
+	err := WriteQueueCheckpoint(1, 1, 2, 3, 4, 5)
+	assert.NoError(t, err)
 }
