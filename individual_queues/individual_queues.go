@@ -358,6 +358,11 @@ func reCalculateUsersQueueSizes_(endPointIdToSubsId map[int]string) error {
 		subscriptionIds = append(subscriptionIds, subsId)
 	}
 
+	if 0 == len(subscriptionIds) {
+		fmt.Printf("forwarder.individual_queues.reCalculateUsersQueueSizes_() Got no subscriptionIds to check. Which can happen\n")
+		return nil
+	}
+
 	subsToCount, err := forwarderPubsub.CheckNbrItemsPubsubs(projectId, subscriptionIds)
 	if nil != err {
 		return fmt.Errorf("forwarder.individual_queues.reCalculateUsersQueueSizes_() Failed to check queue sizes: %v", err)
