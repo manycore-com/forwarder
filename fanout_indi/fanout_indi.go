@@ -224,7 +224,7 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 											if ev.TopicPartition.Error != nil {
 												fmt.Printf("forwarder.fanout_indi.asyncFanout() Kafka delivery failed: %v\n", ev.TopicPartition.Error)
 											} else {
-												//fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
+												fmt.Printf("forwarder.fanout_indi.asyncFanout() Kafka delivery success: %v\n", ev.TopicPartition.String())
 											}
 										}
 									}
