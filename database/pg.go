@@ -61,10 +61,11 @@ type EndPointStruct struct {
 }
 
 type CompanyInfo struct {
-	EndPoints           []EndPointStruct
-	Secret              string
-	WarnedAt            pq.NullTime  // Can't Scan() null into normal *time.Time
-	DisabledAt          pq.NullTime
+	EndPoints               []EndPointStruct
+	Secret                  string
+	WarnedAt                pq.NullTime  // Can't Scan() null into normal *time.Time
+	DisabledAt              pq.NullTime
+	BounceManagerIsActive   bool
 }
 
 var companyInfoMap = make(map[int]*CompanyInfo)
@@ -129,6 +130,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 		var secret string
 		var warnedAt pq.NullTime
 		var disabledAt pq.NullTime
+		var bounceManagerIsActive bool
 		q := `
         select 
             coalesce((
@@ -147,13 +149,14 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
             ),'[]') as json,
             secret,
             warned_at,
-            disabled_at
+            disabled_at,
+            bounce_manager_is_active
         from 
             webhook_forwarder_poll_cfg ipc
         where company_id = $1
         `
 
-		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret, &warnedAt, &disabledAt)
+		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret, &warnedAt, &disabledAt, &bounceManagerIsActive)
 		if err != nil {
 			if strings.Contains(fmt.Sprintf("%v", err), "no rows in result set") {
 				companyInfoMap[companyId] = nil
@@ -164,7 +167,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 			return nil, err
 		}
 
-		var ci = CompanyInfo{Secret: secret, WarnedAt: warnedAt, DisabledAt: disabledAt}
+		var ci = CompanyInfo{Secret: secret, WarnedAt: warnedAt, DisabledAt: disabledAt, BounceManagerIsActive: bounceManagerIsActive}
 		companyInfoMap[companyId] = &ci
 		theElem = &ci
 

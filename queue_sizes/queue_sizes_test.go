@@ -38,6 +38,7 @@ func TestGetOldestAgeInResend(t *testing.T) {
 		"RalfRektor%d",
 	}
 	age, err := GetOldestAgeInResend(1, fakeSubsIdTemplates)
+	fmt.Printf("age: %d\n", age)
 	assert.NoError(t, err, "more problems")
 	assert.True(t, age >= 999 && age <= 1001, "age wrong: " + strconv.Itoa(age))
 

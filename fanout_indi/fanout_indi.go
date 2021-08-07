@@ -8,9 +8,11 @@ import (
 	"fmt"
 	forwarderCommon "github.com/manycore-com/forwarder/common"
 	forwarderDb "github.com/manycore-com/forwarder/database"
+	forwarderKafka "github.com/manycore-com/forwarder/kafka"
 	forwarderPubsub "github.com/manycore-com/forwarder/pubsub"
 	forwarderRedis "github.com/manycore-com/forwarder/redis"
 	forwarderStats "github.com/manycore-com/forwarder/stats"
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"strconv"
 	"sync"
@@ -168,10 +170,21 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 			ignoreCompany := map[int]bool{}
 			hasSetMessage := map[int]bool{}
 			endPointIdToTopic := map[int]*pubsub.Topic{}
+			kafkaIsHappy := true
+			var kafkaProducer *kafka.Producer = nil
 			for {
 				elem := <- *pubsubForwardChan
 				if nil == elem {
 					//fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): done.\n", devprod, idx)
+					if nil != kafkaProducer {
+						// runs until timeout OR everything is flushed.
+						remainingMessages := kafkaProducer.Flush(10000)
+
+						if 0 != remainingMessages {
+							fmt.Printf("forwarder.fanout_indi.asyncFanout() there are still %d Kafka messages that were not flushed!\n", remainingMessages)
+						}
+						//kafkaProducer.Close() taken care of by forwarderKafka.Close()
+					}
 					break
 				}
 
@@ -190,6 +203,55 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 				if 0 == len(ci.EndPoints) {
 					ignoreCompany[elem.CompanyID] = true
 					continue
+				}
+
+				// FIXME in the rewrite we should have resend-capability for the case when Kafka is down.
+				// I'm reluctant to do that now when we have the "up to 100 users" hackish one pubsub per endpoint system.
+				if ci.BounceManagerIsActive {
+					if kafkaIsHappy {
+						if nil == kafkaProducer {
+							kafkaProducer, err = forwarderKafka.GetKafkaProducer()
+							if nil != err {
+								kafkaIsHappy = false
+								kafkaProducer = nil
+								fmt.Printf("forwarder.fanout_indi.asyncFanout() kafka is not ok. error=%v. Not saving package: %#v\n", err, elem.GetUUID())
+							} else {
+
+								go func() {
+									for e := range kafkaProducer.Events() {
+										switch ev := e.(type) {
+										case *kafka.Message:
+											if ev.TopicPartition.Error != nil {
+												fmt.Printf("forwarder.fanout_indi.asyncFanout() Kafka delivery failed: %v\n", ev.TopicPartition.Error)
+											} else {
+												//fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
+											}
+										}
+									}
+								}()
+
+							}
+						}
+
+						if nil != kafkaProducer {
+
+							topicName := fmt.Sprintf("EVENTS_SG_CID_%d", elem.CompanyID)
+							err = kafkaProducer.Produce(&kafka.Message{
+								TopicPartition: kafka.TopicPartition{
+									Topic: &topicName,
+									Partition: kafka.PartitionAny,  // we really don't care now that we have one queue per CompanyId
+								},
+								Value:          []byte(elem.ESPJsonString),
+							}, nil)
+
+							if nil != err {
+								fmt.Printf("forwarder.fanout_indi.asyncFanout() Failed to send kafka message: %v\n", err)
+							}
+
+						}
+					} else {
+						fmt.Printf("forwarder.fanout_indi.asyncFanout() kafka is not ok. Not saving package: %#v\n", elem.GetUUID())
+					}
 				}
 
 				for _, endPoint := range ci.EndPoints {
@@ -280,6 +342,13 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 		return err
 	}
 
+	err = forwarderKafka.Env()
+	if nil != err {
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi(): v%s Failed to kafka.Env(): %v\n", forwarderCommon.PackageVersion, err)
+		return err
+	}
+
+	defer forwarderKafka.Cleanup()
 
 	// The webhook posts to the topic feeding inSubscriptionId
 
