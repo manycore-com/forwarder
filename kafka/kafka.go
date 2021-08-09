@@ -88,7 +88,7 @@ func GetKafkaProducer() (*kafka.Producer, error) {
 		conf.SetKey("sasl.password", saslPassword)
 	}
 
-	p, err := kafka.NewProducer(&conf)
+	p, err := kafka.NewProducer(&conf)  // 23MB
 
 	if nil != err {
 		return nil, fmt.Errorf("kafka.GetKafkaProducer() failed to instantiate kafka producer: %v", err)

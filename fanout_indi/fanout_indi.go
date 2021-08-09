@@ -148,8 +148,84 @@ func addEndPointId(endPointId int) {
 	}
 }
 
+type KafkaMessage struct {
+	TopicName       string
+	Message         []byte
+}
+
+var kafkaMessages []*KafkaMessage
+var kafkaMutex sync.Mutex
+func addKafkaMessage(elem *forwarderPubsub.PubSubElement) {
+	topicName := fmt.Sprintf("EVENTS_SG_CID_%d", elem.CompanyID)
+
+	km := KafkaMessage{
+		TopicName: topicName,
+		Message: []byte(elem.ESPJsonString),
+	}
+
+	kafkaMutex.Lock()
+	defer kafkaMutex.Unlock()
+
+	kafkaMessages = append(kafkaMessages, &km)
+}
+
+// Note: Each kafka.Producer is 23MB.
+func flushKafkaMessages() error {
+
+	if 0 == len(kafkaMessages) {
+		return nil
+	}
+
+	kafkaProducer, err := forwarderKafka.GetKafkaProducer()  // forwarderKafka.Close() will close the producer
+	if nil != err {
+		return fmt.Errorf("forwarder.fanout_indi.flushKafkaMessages() kafka is not ok. error=%v\n", err)
+	}
+
+	go func() {
+		for e := range kafkaProducer.Events() {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					fmt.Printf("forwarder.fanout_indi.flushKafkaMessages() Kafka delivery failed: %v\n", ev.TopicPartition.Error)
+				} else {
+					fmt.Printf("forwarder.fanout_indi.flushKafkaMessages() Kafka delivery success: %v\n", ev.TopicPartition.String())
+				}
+			}
+		}
+	}()
+
+	for _, km := range kafkaMessages {
+
+		err = kafkaProducer.Produce(&kafka.Message{
+			TopicPartition: kafka.TopicPartition{
+				Topic: &km.TopicName,
+				Partition: kafka.PartitionAny,  // we really don't care now that we have one queue per CompanyId
+			},
+			Value:          km.Message,
+		}, nil)
+
+		if nil != err {
+			fmt.Printf("forwarder.fanout_indi.flushKafkaMessages() Failed to send kafka message: %v\n", err)
+		}
+
+	}
+
+	remainingMessages := kafkaProducer.Flush(10000)
+
+	if 0 != remainingMessages {
+		fmt.Printf("forwarder.fanout_indi.flushKafkaMessages() there are still %d Kafka messages that were not flushed!\n", remainingMessages)
+	} else {
+		fmt.Printf("forwarder.fanout_indi.flushKafkaMessages() wrote %d Kafka messages\n", len(kafkaMessages))
+	}
+
+	kafkaMessages = []*KafkaMessage{}
+
+	return nil
+}
+
 func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup) {
 	usedEndPoints = make(map[int]int)
+	kafkaMessages = []*KafkaMessage{}
 
 	for i := 0; i < nbrPublishWorkers; i++ {
 		forwardWaitGroup.Add(1)
@@ -170,21 +246,10 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 			ignoreCompany := map[int]bool{}
 			hasSetMessage := map[int]bool{}
 			endPointIdToTopic := map[int]*pubsub.Topic{}
-			kafkaIsHappy := true
-			var kafkaProducer *kafka.Producer = nil
 			for {
 				elem := <- *pubsubForwardChan
 				if nil == elem {
 					//fmt.Printf("forwarder.fanout_indi.asyncFanout(%s,%d): done.\n", devprod, idx)
-					if nil != kafkaProducer {
-						// runs until timeout OR everything is flushed.
-						remainingMessages := kafkaProducer.Flush(10000)
-
-						if 0 != remainingMessages {
-							fmt.Printf("forwarder.fanout_indi.asyncFanout() there are still %d Kafka messages that were not flushed!\n", remainingMessages)
-						}
-						//kafkaProducer.Close() taken care of by forwarderKafka.Close()
-					}
 					break
 				}
 
@@ -205,53 +270,8 @@ func asyncFanout(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forward
 					continue
 				}
 
-				// FIXME in the rewrite we should have resend-capability for the case when Kafka is down.
-				// I'm reluctant to do that now when we have the "up to 100 users" hackish one pubsub per endpoint system.
 				if ci.BounceManagerIsActive {
-					if kafkaIsHappy {
-						if nil == kafkaProducer {
-							kafkaProducer, err = forwarderKafka.GetKafkaProducer()
-							if nil != err {
-								kafkaIsHappy = false
-								kafkaProducer = nil
-								fmt.Printf("forwarder.fanout_indi.asyncFanout() kafka is not ok. error=%v. Not saving package: %#v\n", err, elem.GetUUID())
-							} else {
-
-								go func() {
-									for e := range kafkaProducer.Events() {
-										switch ev := e.(type) {
-										case *kafka.Message:
-											if ev.TopicPartition.Error != nil {
-												fmt.Printf("forwarder.fanout_indi.asyncFanout() Kafka delivery failed: %v\n", ev.TopicPartition.Error)
-											} else {
-												fmt.Printf("forwarder.fanout_indi.asyncFanout() Kafka delivery success: %v\n", ev.TopicPartition.String())
-											}
-										}
-									}
-								}()
-
-							}
-						}
-
-						if nil != kafkaProducer {
-
-							topicName := fmt.Sprintf("EVENTS_SG_CID_%d", elem.CompanyID)
-							err = kafkaProducer.Produce(&kafka.Message{
-								TopicPartition: kafka.TopicPartition{
-									Topic: &topicName,
-									Partition: kafka.PartitionAny,  // we really don't care now that we have one queue per CompanyId
-								},
-								Value:          []byte(elem.ESPJsonString),
-							}, nil)
-
-							if nil != err {
-								fmt.Printf("forwarder.fanout_indi.asyncFanout() Failed to send kafka message: %v\n", err)
-							}
-
-						}
-					} else {
-						fmt.Printf("forwarder.fanout_indi.asyncFanout() kafka is not ok. Not saving package: %#v\n", elem.GetUUID())
-					}
+					addKafkaMessage(elem)
 				}
 
 				for _, endPoint := range ci.EndPoints {
@@ -311,6 +331,8 @@ func takeDownAsyncFanout(pubsubFailureChan *chan *forwarderPubsub.PubSubElement,
 
 func cleanup() {
 	forwarderDb.Cleanup()
+	kafkaMessages = []*KafkaMessage{}
+	usedEndPoints = make(map[int]int)
 	//forwarderStats.CleanupV2()  // done in WriteStatsToDb()
 }
 
@@ -373,6 +395,11 @@ func FanoutIndi(ctx context.Context, m forwarderPubsub.PubSubMessage, hashId int
 	}
 
 	takeDownAsyncFanout(&pubsubForwardChan, &forwardWaitGroup)
+
+	err = flushKafkaMessages()
+	if nil != err {
+		fmt.Printf("forwarder.fanout_indi.FanoutIndi() failed to write to kafka: %v\n", err)
+	}
 
 	// Store endpoint keys to active set.
 	for endPointId, count := range usedEndPoints {

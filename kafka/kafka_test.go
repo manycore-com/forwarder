@@ -2,12 +2,26 @@ package kafka
 
 import (
 	"fmt"
+	forwarderStats "github.com/manycore-com/forwarder/stats"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"os"
 	"testing"
 	"time"
 )
+
+func TestKafkaProduce2(t *testing.T) {
+	os.Setenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
+
+	err := Env()
+	assert.NoError(t, err)
+	fmt.Printf("mem before: %s\n", forwarderStats.GetMemUsageStr())
+	_, err = GetKafkaProducer()
+	assert.NoError(t, err)
+	fmt.Printf("mem after: %s\n", forwarderStats.GetMemUsageStr())
+
+	defer Cleanup()
+}
 
 func TestKafkaProduce(t *testing.T) {
 	os.Setenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
