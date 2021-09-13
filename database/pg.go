@@ -66,6 +66,7 @@ type CompanyInfo struct {
 	WarnedAt                pq.NullTime  // Can't Scan() null into normal *time.Time
 	DisabledAt              pq.NullTime
 	BounceManagerIsActive   bool
+	AlertEmail              string
 }
 
 var companyInfoMap = make(map[int]*CompanyInfo)
@@ -131,6 +132,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 		var warnedAt pq.NullTime
 		var disabledAt pq.NullTime
 		var bounceManagerIsActive bool
+		var alertEmail string
 		q := `
         select 
             coalesce((
@@ -147,16 +149,20 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
                         ipe.is_active = true
                 ) t
             ),'[]') as json,
-            secret,
-            warned_at,
-            disabled_at,
-            bounce_manager_is_active
+            ipc.secret,
+            ipc.warned_at,
+            ipc.disabled_at,
+            ipc.bounce_manager_is_active,
+			uc.alert_email
         from 
-            webhook_forwarder_poll_cfg ipc
-        where company_id = $1
-        `
+            webhook_forwarder_poll_cfg ipc,
+			users_company uc
+        where 
+            company_id = $1 AND
+		    uc.id = $2
+`
 
-		err = dbconn.QueryRow(context.Background(), q, companyId).Scan(&jsonStr, &secret, &warnedAt, &disabledAt, &bounceManagerIsActive)
+		err = dbconn.QueryRow(context.Background(), q, companyId, companyId).Scan(&jsonStr, &secret, &warnedAt, &disabledAt, &bounceManagerIsActive, &alertEmail)
 		if err != nil {
 			if strings.Contains(fmt.Sprintf("%v", err), "no rows in result set") {
 				companyInfoMap[companyId] = nil
@@ -167,7 +173,7 @@ func GetUserData(companyId int) (*CompanyInfo, error) {
 			return nil, err
 		}
 
-		var ci = CompanyInfo{Secret: secret, WarnedAt: warnedAt, DisabledAt: disabledAt, BounceManagerIsActive: bounceManagerIsActive}
+		var ci = CompanyInfo{Secret: secret, WarnedAt: warnedAt, DisabledAt: disabledAt, BounceManagerIsActive: bounceManagerIsActive, AlertEmail: alertEmail}
 		companyInfoMap[companyId] = &ci
 		theElem = &ci
 

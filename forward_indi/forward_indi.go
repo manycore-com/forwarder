@@ -49,6 +49,11 @@ func env() error {
 	devprod = os.Getenv("DEV_OR_PROD")
 
 	var err error
+	err = forwarderCommon.Env()
+	if nil != err {
+		return fmt.Errorf("forward_indi.env() Failed to initialize common: %v", err)
+	}
+
 	// Optional: How many go threads should send ACK on received messages?
 	if "" != os.Getenv("NBR_ACK_WORKER") {
 		nbrAckWorkers, err = strconv.Atoi(os.Getenv("NBR_ACK_WORKER"))
@@ -294,10 +299,89 @@ func incNbrFail() {
 	forwardIndiMutex.Unlock()
 }
 
+func sendWarning(elem *forwarderPubsub.PubSubElement, hours int) {
+	ud, err := forwarderDb.GetUserData(elem.CompanyID)
+	if nil != err {
+		fmt.Printf("forward_indi.sendWarning() Failed to get user data: %v\n", err)
+	} else {
+
+		cfg, err := forwarderIQ.GetEndPointData(elem.EndPointId)
+		if err != nil {
+			fmt.Printf("forward_indi.sendWarning() Failed to get user data: %v\n", err)
+			return
+		}
+
+		subject := fmt.Sprintf("InboxBooster: Warning: failed to forward %d hours", hours)
+
+		msg := fmt.Sprintf("Hi\n\nYour have messages that failed to forward for %d hours.\n\n" +
+			"Endpoint:\n%s\n\nWe'll keep retrying for 64 hours\n\nRegards,\nInboxbooster staff.\n",
+			hours, cfg.ForwardEndpoint)
+
+		err = forwarderCommon.SendMail(
+			forwarderCommon.GetDefaultFrom(os.Getenv("FORWARDER_EMAIL_REPLY_TO")),
+			os.Getenv("FORWARDER_EMAIL_REPLY_TO"),
+			[]string{ud.AlertEmail},
+			nil,
+			[]string{"alerts@manycore.io"},
+			subject,
+			msg)
+	}
+}
+
+func warnIfOld(oldElements map[int]*forwarderPubsub.PubSubElement) int {
+	mailSent := 0
+
+	var twoDaysIfTsLt = time.Now().Unix() - 48 * 3600
+
+	for _, elem := range oldElements {
+		key := fmt.Sprintf("WARNED_24H_OR_48h_%d", elem.EndPointId)
+
+		var age = 24
+		if elem.Ts < twoDaysIfTsLt {
+			age = 48
+		}
+
+		val, err := forwarderRedis.GetInt(key)
+		if nil != err {
+			fmt.Printf("forward_indi.warIfOld() Error: Failed to read value in redis for key=%s: %v\n", key, err)
+			return mailSent // redis is down
+		}
+
+		if age > val {
+
+			err = forwarderRedis.SetInt64(key, int64(age))
+			if nil != err {
+				fmt.Printf("forward_indi.warIfOld() Error: Failed to set value in redis for key=%s: %v\n", key, err)
+				return mailSent
+			}
+
+			_, err = forwarderRedis.Expire(key, 3600)
+			if nil != err {
+				fmt.Printf("forward_indi.warIfOld() Failed to set ttl in redis for key=%s: %v\n", key, err)
+				// Better to now have any than to blindly
+				forwarderRedis.Del(key)
+				return mailSent
+			}
+
+			sendWarning(elem, age)
+			mailSent++
+		} else {
+			fmt.Printf("forward_indi.warIfOld() %dh old messages already warned about for endpoint=%d\n", age, elem.EndPointId)
+		}
+	}
+
+	return mailSent
+}
 
 func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup, pubsubFailureChan *chan *forwarderPubsub.PubSubElement) {
 
-	var dieIfTsLt = time.Now().Unix() - int64(maxMessageAge)
+	var now = time.Now().Unix()
+	var dieIfTsLt = now - int64(maxMessageAge)
+
+	var oneDayIfTsLt = now - 24 * 3600
+	var twoDaysIfTsLt = now - 48 * 3600
+	var oldElements = map[int]*forwarderPubsub.PubSubElement{}
+
 	for i := 0; i < nbrPublishWorkers; i++ {
 		forwardWaitGroup.Add(1)
 
@@ -316,6 +400,14 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 					forwarderStats.AddTimeout(elem.CompanyID, elem.EndPointId)
 					incNbrDropped()
 					continue
+				}
+
+				if elem.Ts < twoDaysIfTsLt {
+					oldElements[elem.EndPointId] = elem
+				} else if elem.Ts < oneDayIfTsLt {
+					if nil == oldElements[elem.EndPointId] {
+						oldElements[elem.EndPointId] = elem
+					}
 				}
 
 				var err error = nil
@@ -354,6 +446,8 @@ func asyncForward(pubsubForwardChan *chan *forwarderPubsub.PubSubElement, forwar
 
 		} (i, forwardWaitGroup)
 	}
+
+	warnIfOld(oldElements)
 }
 
 func takeDownAsyncForward(pubsubFailureChan *chan *forwarderPubsub.PubSubElement, forwardWaitGroup *sync.WaitGroup) {

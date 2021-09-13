@@ -17,6 +17,7 @@ import (
 //  individual_queues   FWD_IQ_ACTIVE_ENDPOINTS_SET   This is a set of ids of active endpoints
 //  forward_indi        oldest_#1_#2                  #1 is a resend subscription, #2 is endpoint_id
 //  forward_indi        counting_#1_#2                #1 is a resend subscription, #2 is endpoint_id
+//  forward_indi        WARNED_24H_OR_48h_#1          #1 is endpoint id. TTL is 1h
 //  trigger_resend      RUN_SPARSELY_STATS_DELETE
 //  pause               IN_PAUSE
 
@@ -223,11 +224,11 @@ func Set(key string, value []byte) error {
 	return nil
 }
 
-func Expire(key string, ttl int) (int, error) {
+func Expire(key string, ttlSeconds int) (int, error) {
 	conn := redisPool.Get()
 	defer conn.Close()
 
-	counter, err := redis.Int(conn.Do("EXPIRE", key, ttl))
+	counter, err := redis.Int(conn.Do("EXPIRE", key, ttlSeconds))
 	if err != nil {
 		return -1, err
 	}
